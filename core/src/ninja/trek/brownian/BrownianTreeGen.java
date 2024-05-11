@@ -11,6 +11,7 @@ import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -41,13 +42,12 @@ public class BrownianTreeGen extends ApplicationAdapter {
 	public Array<Vector2> centre = new Array<Vector2>();
 
 
-
-	public IntArray parent = new IntArray();
+	public IntArray parent = new IntArray(),  children = new IntArray();
 
 	public IntArray thickness = new IntArray();
 
 	private Vector2 a  = new Vector2(), b = new Vector2(), v = new Vector2(), intersect = new Vector2(), tmp = new Vector2(), target = new Vector2();
-
+	private Vector3 v3 = new Vector3();
 	int[] collIndex = new int[1];
 	private int width;
 	private int height;
@@ -117,6 +117,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 	public void mainScreen() {
 		stage.clear();
 		stage.addActor(mainTable);
+
 	}
 
 	public void resetTree(){
@@ -125,17 +126,19 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		end.clear();
 		parent.clear();
 		centre.clear();
+		children.clear();
+
 
 		width = 900;
 		height = 900;
-		for (int i = 0; i < drawingScreen.start.size; i++){
-			start.add(new Vector2(drawingScreen.start.get(i)));
-			end.add(new Vector2(drawingScreen.end.get(i)));
-			Vector2 c = new Vector2(drawingScreen.start.get(i)).lerp(drawingScreen.end.get(i), 0.5f);
-			centre.add(c);
-			parent.add(-1);
-			Gdx.app.log("reset", "add"+start.peek());
-		}
+//		for (int i = 0; i < drawingScreen.destStart.size; i++){
+//			start.add(new Vector2(drawingScreen.destStart.get(i)));
+//			end.add(new Vector2(drawingScreen.destEnd.get(i)));
+//			Vector2 c = new Vector2(drawingScreen.destStart.get(i)).lerp(drawingScreen.destEnd.get(i), 0.5f);
+//			centre.add(c);
+//			parent.add(-1);
+//			Gdx.app.log("reset", "add"+start.peek());
+//		}
 		calculateThicknesses();
 //		start.add(new Vector2(width/2-10, height/2-10));
 //		end.add(new Vector2(width/2+10, height/2+10));
@@ -144,82 +147,95 @@ public class BrownianTreeGen extends ApplicationAdapter {
 	}
 
 	public void calculateThicknesses(){
+		Gdx.app.log("main", "thickness");
 		int[] t = new int[start.size];
-		int[] children = new int[start.size];
-		for (int i = drawingScreen.start.size; i < start.size; i++){
-			children[parent.get(i)]++;
-		}
-		for (int i = drawingScreen.start.size; i < start.size; i++) {
-			if (children[i] == 0){
-				int current = i;
-				while (parent.get(current) != -1){
-					current = parent.get(current);
-					t[current] = Math.min(MAX_THICKNESS, t[current]+1);
-				}
-			}
-		}
-		int maxThickness = 0;
-		for (int i = 0; i <  start.size; i++){
-			maxThickness = Math.max(maxThickness, t[i]);
-		}
-		for (int i = 0; i <  start.size; i++){
-			float delta = (float)t[i] / maxThickness;
-//			t[i] = (int)MathUtils.lerp(1, MAX_THICKNESS, delta);
-			t[i] = (int)Interpolation.exp10In.apply(0, MAX_THICKNESS, delta);
-
-			//Gdx.app.log("thickness adjustment ", ""+t[i]);
-		}
+//		int[] children = new int[start.size];
+//		for (int i = 0; i < start.size; i++){
+//			if (parent.get(i) != -1)
+//				children[parent.get(i)]++;
+//		}
+//		for (int i = 0; i < start.size; i++) {
+//			if (children[i] == 0){
+//				int current = i;
+//				while (parent.get(current) != -1){
+//					current = parent.get(current);
+//					t[current] = Math.min(MAX_THICKNESS, t[current]+1);
+//				}
+//			}
+//		}
+//		int maxThickness = 0;
+//		for (int i = 0; i <  start.size; i++){
+//			maxThickness = Math.max(maxThickness, t[i]);
+//		}
+//		for (int i = 0; i <  start.size; i++){
+//			float delta = (float)t[i] / maxThickness;
+////			t[i] = (int)MathUtils.lerp(1, MAX_THICKNESS, delta);
+//			t[i] = (int)Interpolation.exp10In.apply(0, MAX_THICKNESS, delta);
+//
+//			//Gdx.app.log("thickness adjustment ", ""+t[i]);
+//		}
 
 		thickness.addAll(t);
 	}
 
-	public void createTree(boolean outside, boolean nearest, int targetLineCount, float angle) {
-		Gdx.app.log("main", "start" +outside+nearest+targetLineCount + " " + angle);
+	public void createTree(boolean nearest, int targetLineCount, float angle, int childLimit, boolean randomStart, float lineLengthMin, float lineLengthMax) {
+		Gdx.app.log("main", "start" +nearest+targetLineCount + " " + angle);
 //		MathUtils.random.setSeed(1);
-		//add start lines
-		
-
-		int maxTries = 221100;
-
-		float lineLengthMax = 27;
-		float lineLengthMin = 14;
+		int maxTries = targetLineCount * 10;
 		int tries = 0;
 		int createdLines = 0;
 
 		while (tries++ < maxTries && createdLines < targetLineCount){
 
-			if (outside) switch (MathUtils.random(3)){
-				case 0:a.set(MathUtils.random(width), 0);break;
-				case 1:a.set(MathUtils.random(width), height);break;
-				case 2:a.set(0, MathUtils.random(height));break;
-				case 3:a.set(width, MathUtils.random(height));break;
-				default: throw new GdxRuntimeException("no");
-			} else a.set(MathUtils.random(width), MathUtils.random(height));
-
-			float lineLengthDelta = (float)start.size / targetLineCount;
+			if (randomStart){
+				a.set(MathUtils.random(width), MathUtils.random(height));
+			} else {
+				//			set random start from source
+				int sourceIndex = MathUtils.random(drawingScreen.adjustedSourceStart.size-1);
+				a.set(drawingScreen.adjustedSourceStart.get(sourceIndex));
+				float alpha = MathUtils.random(1f);
+//			Gdx.app.log("main", "a 1 " + a + " alpha " + alpha + " index " + sourceIndex + " / " + drawingScreen.adjustedSourceStart.size);
+				a.lerp(drawingScreen.adjustedSourceEnd.get(sourceIndex), alpha);
+//			Gdx.app.log("main", "a 2 " + a);
+			}
+			float lineLengthDelta = (float)createdLines / targetLineCount;
 			float lineLength = MathUtils.lerp(lineLengthMax, lineLengthMin, lineLengthDelta);
-
 //			Gdx.app.log("main", "iterating" +lineLength);
 			boolean hasCollided = false;
 			int moveTries = 0;
 			while (moveTries++ < 1000 && !hasCollided){
 				v.set(-lineLength, 0);
-
-				if (nearest) setClosestPoint(target, a);
-				else target.set(width/2, height/2);
-
-				float targetAngle = tmp.set(a).sub(target).angleDeg();
+				float targetAngle;
+				if (nearest){
+					setClosestPoint(target, a);
+					targetAngle = tmp.set(a).sub(target).angleDeg();
+				}
+				else{
+//					target.set(width/2, height/2);
+					targetAngle = MathUtils.random(360f);
+				}
 				v.rotateDeg(MathUtils.random(-angle, angle) + targetAngle);
 				b.set(a).add(v);
-//				Gdx.app.log("main", "moved"+ a);//tmp.set(a).sub(b).angleDeg());
+//				Gdx.app.log("main", "moved"+ a + "  angle " + targetAngle + " " + target);//tmp.set(a).sub(b).angleDeg());
 				if (b.x <  0 || b.x > width || b.y < 0 || b.y > height){
 					hasCollided = true;
-//					Gdx.app.log("main", "failed");
+//					Gdx.app.log("main", "failed oob");
 					continue;
 				}
 				if (collide(a, b, intersect, collIndex)){
 					hasCollided= true;
-					if (moveTries == 1) continue;
+					if (moveTries == 1) {
+						Gdx.app.log("main", "failed collision at source");
+						continue;
+					}
+					if (collIndex[0] == -1 || parent.get(collIndex[0]) == -1){
+						children.add(0);
+					} else {
+						int ch = children.get(parent.get(collIndex[0]))+1;
+						if (ch > childLimit) continue;
+						children.add(ch);
+						Gdx.app.log("Main", "children " + ch);
+					}
 					start.add(new Vector2(a));
 					end.add(new Vector2(intersect));
 					Vector2 c = new Vector2(a);
@@ -228,25 +244,36 @@ public class BrownianTreeGen extends ApplicationAdapter {
 					parent.add(collIndex[0]);
 					createdLines++;
 //					end.add(new Vector2(b));
-//					Gdx.app.log("main", "col "+a+collIndex[0]);
+//					Gdx.app.log("main", "collided "+a+collIndex[0]);
 				}
 				a.set(b);
 			}
-
-
+//			if (!hasCollided) Gdx.app.log("main", "failed to collide "+a+collIndex[0]);
 		}
-
-
 		//		Gdx.app.log("main", "done " + start.size);
 		calculateThicknesses();
 	}
 
 	private void setClosestPoint(Vector2 target, Vector2 a) {
+
 		float dist = 1000000000;
 		for (int i = 0; i < centre.size; i++){
-			if (a.dst2(centre.get(i)) < dist){
-				dist = a.dst2(centre.get(i));
-				target.set(centre.get(i));
+			Vector2 s = start.get(i);
+			Vector2 e = end.get(i);
+//			if (a.dst2(centre.get(i)) < dist){
+			float d = Intersector.distanceSegmentPoint(s, e, a);
+			if (d < dist){
+				dist = d;
+				Intersector.nearestSegmentPoint(s, e, a, target);
+			}
+		}
+		for (int i = 0; i < drawingScreen.destCenter.size; i++){
+			Vector2 s = drawingScreen.destStart.get(i);
+			Vector2 e = drawingScreen.destEnd.get(i);
+			float d = Intersector.distanceSegmentPoint(s, e, a);
+			if (d < dist){
+				dist = d;
+				Intersector.nearestSegmentPoint(s, e, a, target);
 			}
 		}
 	}
@@ -264,6 +291,19 @@ public class BrownianTreeGen extends ApplicationAdapter {
 					coll.set(v);
 					hasCollided = true;
 					index[0] = i;
+				}
+			};
+		}
+		for (int i = 0; i < drawingScreen.destStart.size; i++){
+			Vector2 st = drawingScreen.destStart.get(i);
+			Vector2 en = drawingScreen.destEnd.get(i);
+			if (Intersector.intersectSegments(a, b, st, en, v)){
+//				Gdx.app.log("cllide", "intersect " + a + b + " with " +st + en);
+				if (v.dst(a) < dist){
+					dist = v.dst(a);
+					coll.set(v);
+					hasCollided = true;
+					index[0] = -1;
 				}
 			};
 		}
@@ -288,6 +328,32 @@ public class BrownianTreeGen extends ApplicationAdapter {
 				Vector2 en = end.get(i);
 				int thick = thickness.get(i);
 				if (thick == t) shape.line(st, en);
+//				Gdx.app.log("main", "drawing " + st + en);
+			}
+			if (drawingScreen.isFirstPoint){
+				v3.set(Gdx.input.getX(), Gdx.input.getY(), 0);
+				camera.unproject(v3);
+				v.set(v3.x, v3.y);
+				shape.line(drawingScreen.current, v);
+			}
+			shape.end();
+			shape.setColor(Color.GREEN);
+			shape.begin(ShapeRenderer.ShapeType.Line);
+			for (int i = 0; i < drawingScreen.destStart.size; i++){
+				Vector2 st = drawingScreen.destStart.get(i);
+				Vector2 en = drawingScreen.destEnd.get(i);
+				int thick = 1;
+				if (0 == t) shape.line(st, en);
+//				Gdx.app.log("main", "drawing " + st + en);
+			}
+			shape.end();
+			shape.setColor(Color.RED);
+			shape.begin(ShapeRenderer.ShapeType.Line);
+			for (int i = 0; i < drawingScreen.sourceStart.size; i++){
+				Vector2 st = drawingScreen.sourceStart.get(i);
+				Vector2 en = drawingScreen.sourceEnd.get(i);
+				int thick = 1;
+				if (0 == t) shape.line(st, en);
 //				Gdx.app.log("main", "drawing " + st + en);
 			}
 			shape.end();
