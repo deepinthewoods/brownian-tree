@@ -1,6 +1,7 @@
 package ninja.trek.brownian;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
@@ -22,23 +23,31 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 
+import java.awt.Font;
+
 public class DrawingScreen extends Stack {
     public static String TAG = "Drawing Screen";
     public Array<Vector2> sourceStart = new Array<Vector2>(), sourceEnd = new Array<Vector2>();
     public Array<Vector2> adjustedSourceStart = new Array<Vector2>(), adjustedSourceEnd = new Array<Vector2>();
+    public Array<Vector2> excludeStart = new Array<Vector2>(), excludeEnd = new Array<Vector2>();
 
-    public Array<Vector2> destStart = new Array<Vector2>(), destEnd = new Array<Vector2>(), destCenter = new Array<Vector2>();
+    public Array<Vector2> destStart = new Array<Vector2>(), destEnd = new Array<Vector2>();
 
     public boolean isFirstPoint = false;
-    public enum DrawingMode {SOURCE, DESTINATION, ERASE};
+    public boolean[] shouldStopGenerating;
+    public int shouldStopTotal;
+
+    public enum DrawingMode {SOURCE, DESTINATION, EXCLUDE, ERASE};
     private DrawingMode mode = DrawingMode.SOURCE;
 
     public Vector2 current = new Vector2();
 
     public DrawingScreen(final BrownianTreeGen parent){
         Skin skin = VisUI.getSkin();
+        skin.getFont("default-font").getData().markupEnabled = true;
         Table backTable = new Table();
         TextButton clear = new TextButton("clear", skin);
+//        Gdx.app.log(TAG, "font " + skin.getFont("label"));
         clear.addListener(new ClickListener(){
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -55,7 +64,8 @@ public class DrawingScreen extends Stack {
         ButtonGroup drawGroup = new ButtonGroup<CheckBox>();
         Table drawTable = new Table();
 
-        CheckBox sourceBtn = new CheckBox("Source", skin);
+        CheckBox sourceBtn = new CheckBox("[CYAN]Source", skin);
+
         drawGroup.add(sourceBtn);
         drawTable.add(sourceBtn).row();
         sourceBtn.addListener(new ChangeListener(){
@@ -66,7 +76,7 @@ public class DrawingScreen extends Stack {
             }
         });
 
-        CheckBox destBtn = new CheckBox("Destination", skin);
+        CheckBox destBtn = new CheckBox("[GREEN]Destination", skin);
         drawGroup.add(destBtn);
         drawTable.add(destBtn).row();
         destBtn.addListener(new ChangeListener(){
@@ -85,6 +95,17 @@ public class DrawingScreen extends Stack {
             public void changed(ChangeEvent event, Actor actor) {
                 if (((CheckBox)actor).isChecked())
                     mode = DrawingMode.ERASE;
+            }
+        });
+
+        CheckBox excludeBtn = new CheckBox("[RED]Exclude",  skin);
+        drawGroup.add(excludeBtn);
+        drawTable.add(excludeBtn).row();
+        eraseBtn.addListener(new ChangeListener(){
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (((CheckBox)actor).isChecked())
+                    mode = DrawingMode.EXCLUDE;
             }
         });
 
@@ -123,8 +144,11 @@ public class DrawingScreen extends Stack {
                 } else if (mode == DrawingMode.DESTINATION){
                     start = destStart;
                     end = destEnd;
-                    center = destCenter;
+                } else if (mode == DrawingMode.EXCLUDE){
+                    start = excludeStart;
+                    end = excludeEnd;
                 }
+
                 if (isFirstPoint) {
                     current.set(x, y);
                 }
@@ -215,9 +239,11 @@ public class DrawingScreen extends Stack {
 
                 adjustedSourceStart.add(st);
                 adjustedSourceEnd.add(en);
-                Gdx.app.log(TAG, "adj " + st + en + " : " + i);
+//                Gdx.app.log(TAG, "adj " + st + en + " : " + i);
             }
 
         }
+        shouldStopGenerating = new boolean[adjustedSourceStart.size];
+        shouldStopTotal = 0;
     }
 }

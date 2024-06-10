@@ -31,7 +31,7 @@ public class Settings extends Table {
         add(nearest).colspan(2).left().row();
 
         final CheckBox rand = new CheckBox("Random Start Point", skin);
-        add(rand).left().row();
+        add(rand).left().colspan(2).row();
 
 
 
@@ -58,6 +58,7 @@ public class Settings extends Table {
             }
         });
         angle.setDisabled(true);
+        angle.setValue(45);
         add(angleL).left();
         add(angle).left().row();
 
