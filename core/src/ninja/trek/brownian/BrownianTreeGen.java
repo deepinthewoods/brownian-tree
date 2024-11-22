@@ -9,7 +9,6 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
@@ -17,18 +16,14 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.kotcrab.vis.ui.VisUI;
-
-import org.w3c.dom.Text;
 
 public class BrownianTreeGen extends ApplicationAdapter {
 	private static final int MAX_THICKNESS = 2;
@@ -84,18 +79,6 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		stage = new Stage();
 		drawingScreen = new DrawingScreen(this);
 		mainTable = new Table();
-//		Button createBtn = new TextButton("Create", skin);
-//		createBtn.addListener(new ClickListener(){
-//			@Override
-//			public void clicked(InputEvent event, float x, float y) {
-//				super.clicked(event, x, y);
-//				resetTree();
-//				createTree(true, true, 50, 10);
-//				createTree(true, false, 600, 45);
-//
-//			}
-//		});
-//		mainTable.add(createBtn);
 
 		TextButton resetBtn = new TextButton("reset", skin);
 		resetBtn.addListener(new ClickListener(){
@@ -129,7 +112,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 			@Override
 			public void clicked(InputEvent event, float x, float y) {
 				isProcessing = false;
-				calculateThicknesses();
+				postCalculations();
 			}
 		});
 
@@ -145,9 +128,6 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		mainTable.add(new Actor()).expand().row();
 		mainTable.add(new Settings(this));
 		mainTable.add(new Actor()).expand().row();
-//		mainTable.add(new Settings(this));
-//		mainTable.add(new Actor()).expand().row();
-
 		mainTable.setFillParent(true);
 		mainScreen();
 		Gdx.input.setInputProcessor(stage);
@@ -169,37 +149,12 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		children.clear();
 		width = Gdx.graphics.getWidth();
 		height = Gdx.graphics.getHeight();
-		calculateThicknesses();
+		postCalculations();
 	}
 
-	public void calculateThicknesses(){
+	public void postCalculations(){
 		Gdx.app.log("main", "thickness");
 		int[] t = new int[start.size];
-//		int[] children = new int[start.size];
-//		for (int i = 0; i < start.size; i++){
-//			if (parent.get(i) != -1)
-//				children[parent.get(i)]++;
-//		}
-//		for (int i = 0; i < start.size; i++) {
-//			if (children[i] == 0){
-//				int current = i;
-//				while (parent.get(current) != -1){
-//					current = parent.get(current);
-//					t[current] = Math.min(MAX_THICKNESS, t[current]+1);
-//				}
-//			}
-//		}
-//		int maxThickness = 0;
-//		for (int i = 0; i <  start.size; i++){
-//			maxThickness = Math.max(maxThickness, t[i]);
-//		}
-//		for (int i = 0; i <  start.size; i++){
-//			float delta = (float)t[i] / maxThickness;
-////			t[i] = (int)MathUtils.lerp(1, MAX_THICKNESS, delta);
-//			t[i] = (int)Interpolation.exp10In.apply(0, MAX_THICKNESS, delta);
-//
-//			//Gdx.app.log("thickness adjustment ", ""+t[i]);
-//		}
 
 		thickness.addAll(t);
 	}
@@ -369,7 +324,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		for (int i = 0; i < 8; i++) if (isProcessing){
 			if (processTree()){
 				isProcessing = false;
-				calculateThicknesses();
+				postCalculations();
 			}
 		}
 
