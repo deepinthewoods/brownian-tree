@@ -101,7 +101,7 @@ public class DrawingScreen extends Stack {
         CheckBox excludeBtn = new CheckBox("[RED]Exclude",  skin);
         drawGroup.add(excludeBtn);
         drawTable.add(excludeBtn).row();
-        eraseBtn.addListener(new ChangeListener(){
+        excludeBtn.addListener(new ChangeListener(){
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (((CheckBox)actor).isChecked())
@@ -130,7 +130,7 @@ public class DrawingScreen extends Stack {
         actor.addListener(new InputListener(){
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                Gdx.app.log("draw", "touch " + x + " " + y + isFirstPoint);
+                Gdx.app.log("draw", "touch " + x + " " + y + mode);
                 if (mode == DrawingMode.ERASE){
                     erase(x, y);
                     return true;
@@ -174,6 +174,7 @@ public class DrawingScreen extends Stack {
     }
     Vector2 a = new Vector2();
     private void erase(float x, float y) {
+        Gdx.app.log("draws", "erase");
         float dist = Float.MAX_VALUE;
         int closestIndex = -1;
         Array<?> closestListE = null, closestListS = null;
@@ -203,13 +204,29 @@ public class DrawingScreen extends Stack {
                 closestListE = destEnd;
             }
         }
+
+        for (int i = 0; i < excludeStart.size; i++){
+            Vector2 s = excludeStart.get(i);
+            Vector2 e = excludeEnd.get(i);
+//			if (a.dst2(centre.get(i)) < dist){
+            float d = Intersector.distanceSegmentPoint(s, e, a);
+            if (d < dist){
+                dist = d;
+                closestIndex = i;
+                closestListS = excludeStart;
+                closestListE = excludeEnd;
+            }
+        }
+
         if (closestIndex != -1){
             closestListS.removeIndex(closestIndex);
             closestListE.removeIndex(closestIndex);
+            Gdx.app.log("draws", "erased");
         }
+        makeAdjustedSourceLines();
     }
 
-    private void makeAdjustedSourceLines() {
+    public void makeAdjustedSourceLines() {
         adjustedSourceStart.clear();
         adjustedSourceEnd.clear();
         //find smallest length

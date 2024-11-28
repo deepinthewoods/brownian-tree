@@ -25,6 +25,8 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.kotcrab.vis.ui.VisUI;
 
+import java.util.Arrays;
+
 public class BrownianTreeGen extends ApplicationAdapter {
 	private static final int MAX_THICKNESS = 2;
 	SpriteBatch batch;
@@ -62,6 +64,9 @@ public class BrownianTreeGen extends ApplicationAdapter {
 	private boolean isDrawing;
 	private SVGExporter exporter;
 	private BitmapFont font;
+
+	public IntArray sourceConnections = new IntArray();
+	private float maxDistance;
 
 	@Override
 	public void create () {
@@ -103,6 +108,16 @@ public class BrownianTreeGen extends ApplicationAdapter {
 			public void clicked(InputEvent event, float x, float y) {
 				FileHandle file = Gdx.files.external("output.svg");
 				SVGExporter.exportToSVG(start, end, file);
+
+				super.clicked(event, x, y);
+			}
+		});
+
+		TextButton finalizeBtn = new TextButton("Finalize", skin);
+		finalizeBtn.addListener(new ClickListener(){
+			@Override
+			public void clicked(InputEvent event, float x, float y) {
+				finalizeTree();
 				super.clicked(event, x, y);
 			}
 		});
@@ -118,6 +133,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 
 		mainTable.add(resetBtn).left();
 		mainTable.add(drawBtn).left();
+		mainTable.add(finalizeBtn).left();
 		mainTable.add(exportBtn).left();
 		mainTable.add(stopBtn);
 		mainTable.add(new Actor()).expandX().row();
@@ -142,6 +158,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 	}
 
 	public void resetTree(){
+		drawingScreen.makeAdjustedSourceLines();
 		Gdx.app.log("main", "starting");
 		start.clear();
 		end.clear();
@@ -149,14 +166,47 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		children.clear();
 		width = Gdx.graphics.getWidth();
 		height = Gdx.graphics.getHeight();
+		sourceConnections.clear();
 		postCalculations();
 	}
 
-	public void postCalculations(){
-		Gdx.app.log("main", "thickness");
-		int[] t = new int[start.size];
 
-		thickness.addAll(t);
+
+	public void postCalculations() {
+		int[] mainLineDistance = new int[start.size];
+		Arrays.fill(mainLineDistance, Integer.MAX_VALUE);
+		//mark source lines as distance 0
+		for (int i = 0; i < sourceConnections.size; i++) {
+			int endSegment = sourceConnections.get(i);
+			int currentIdx = endSegment;
+			while (currentIdx != -1) {
+				mainLineDistance[currentIdx] = 0;
+				currentIdx = parent.get(currentIdx);
+			}
+		}
+
+		// BFS for distance from main path
+		boolean changed;
+		do {
+			changed = false;
+			for (int i = 0; i < start.size; i++) {
+				if (mainLineDistance[i] == Integer.MAX_VALUE) {
+					int parentDist = parent.get(i) == -1 ? Integer.MAX_VALUE : mainLineDistance[parent.get(i)];
+					if (parentDist != Integer.MAX_VALUE) {
+						mainLineDistance[i] = parentDist + 1;
+						maxDistance = Math.max(maxDistance, mainLineDistance[i]);
+						changed = true;
+					}
+				}
+			}
+		} while (changed);
+		thickness.clear();
+		thickness.addAll(mainLineDistance);
+	}
+
+	public void finalizeTree(){
+		//TODO subdivide all lines at the point where the child line intersects with the parent.
+
 	}
 
 	public void createTree(boolean nearest, int targetLineCount, float angle, int childLimit, boolean randomStart, float lineLengthMin, float lineLengthMax) {
@@ -221,14 +271,17 @@ public class BrownianTreeGen extends ApplicationAdapter {
 //					Gdx.app.log("main", "failed oob");
 					continue;
 				}
+				boolean hitSource = false;
 				if (collide(a, b, intersect, collIndex)){
 					hasCollided= true;
+					if (collIndex[0] == -2) continue;
 					if (moveTries <= 1 && !randomStart) {
-						Gdx.app.log("main", "failed collision at source "+ moveTries);
+//						Gdx.app.log("main", "failed collision at source "+ moveTries);
 						if (sourceIndex != -1) {
 							drawingScreen.shouldStopGenerating[sourceIndex] = true;
 							drawingScreen.shouldStopTotal++;
 						}
+						hitSource = true;
 //						continue;
 					}
 					if (collIndex[0] == -1 || parent.get(collIndex[0]) == -1){
@@ -243,8 +296,8 @@ public class BrownianTreeGen extends ApplicationAdapter {
 					end.add(new Vector2(intersect));
 					Vector2 c = new Vector2(a);
 					c.lerp(intersect, 0.5f);
-
 					parent.add(collIndex[0]);
+					if (hitSource) sourceConnections.add(parent.size-1);
 					createdLines++;
 //					end.add(new Vector2(b));
 //					Gdx.app.log("main", "collided "+a+collIndex[0]);
@@ -286,35 +339,55 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		}
 	}
 
-	private boolean collide(Vector2 a, Vector2 b, Vector2 coll, int[] index){
+	private boolean collide(Vector2 a, Vector2 b, Vector2 coll, int[] index) {
 		float dist = 100000000;
 		boolean hasCollided = false;
-		for (int i = 0; i < start.size; i++){
+
+		// Check collisions with existing tree segments
+		for (int i = 0; i < start.size; i++) {
 			Vector2 st = start.get(i);
 			Vector2 en = end.get(i);
-			if (Intersector.intersectSegments(a, b, st, en, v)){
-//				Gdx.app.log("cllide", "intersect " + a + b + " with " +st + en);
-				if (v.dst(a) < dist){
+			if (Intersector.intersectSegments(a, b, st, en, v)) {
+				if (v.dst(a) < dist) {
 					dist = v.dst(a);
 					coll.set(v);
 					hasCollided = true;
 					index[0] = i;
 				}
-			};
+			}
 		}
-		for (int i = 0; i < drawingScreen.destStart.size; i++){
+
+		// Check collisions with destination lines
+		for (int i = 0; i < drawingScreen.destStart.size; i++) {
 			Vector2 st = drawingScreen.destStart.get(i);
 			Vector2 en = drawingScreen.destEnd.get(i);
-			if (Intersector.intersectSegments(a, b, st, en, v)){
-//				Gdx.app.log("cllide", "intersect " + a + b + " with " +st + en);
-				if (v.dst(a) < dist){
+			if (Intersector.intersectSegments(a, b, st, en, v)) {
+				if (v.dst(a) < dist) {
 					dist = v.dst(a);
 					coll.set(v);
 					hasCollided = true;
 					index[0] = -1;
+
 				}
-			};
+			}
 		}
+
+		// Check collisions with destination lines
+		for (int i = 0; i < drawingScreen.excludeStart.size; i++) {
+			Vector2 st = drawingScreen.excludeStart.get(i);
+			Vector2 en = drawingScreen.excludeEnd.get(i);
+			if (Intersector.intersectSegments(a, b, st, en, v)) {
+				if (v.dst(a) < dist) {
+					dist = v.dst(a);
+					coll.set(v);
+					hasCollided = true;
+					index[0] = -2;
+
+				}
+			}
+		}
+
+
 		return hasCollided;
 	}
 
@@ -341,13 +414,29 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		shape.begin(ShapeRenderer.ShapeType.Line);
 		shape.setColor(Color.WHITE);
 //			Gdx.gl.glLineWidth(t+2.0f);
-		for (int i = 0; i < start.size; i++){
+		Color mainColor = Color.RED;
+		Color tipColor = Color.GREEN;
+		Color tempColor = new Color();
+
+		for (int i = 0; i < start.size; i++) {
 			Vector2 st = start.get(i);
 			Vector2 en = end.get(i);
-//				int thick = thickness.get(i);
-//				if (thick == t)
+			int dist = thickness.size > i?thickness.get(i):0;
+
+			if (dist == 0) {
+				shape.setColor(Color.WHITE);
+			} else if (children.get(i) == 0) {
+				shape.setColor(tipColor);
+			} else {
+				float lerpFactor = MathUtils.clamp(dist / maxDistance, 0, 1);
+				tempColor.r = MathUtils.lerp(mainColor.r, tipColor.r, lerpFactor);
+				tempColor.g = MathUtils.lerp(mainColor.g, tipColor.g, lerpFactor);
+				tempColor.b = MathUtils.lerp(mainColor.b, tipColor.b, lerpFactor);
+				tempColor.a = 1;
+				shape.setColor(tempColor);
+			}
+
 			shape.line(st, en);
-//				Gdx.app.log("main", "drawing " + st + en);
 		}
 		if (drawingScreen.isFirstPoint){
 			v3.set(Gdx.input.getX(), Gdx.input.getY(), 0);
@@ -361,6 +450,17 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		for (int i = 0; i < drawingScreen.destStart.size; i++){
 			Vector2 st = drawingScreen.destStart.get(i);
 			Vector2 en = drawingScreen.destEnd.get(i);
+			int thick = 1;
+//				if (0 == t)
+			shape.line(st, en);
+//				Gdx.app.log("main", "drawing " + st + en);
+		}
+		shape.end();
+		shape.setColor(Color.RED);
+		shape.begin(ShapeRenderer.ShapeType.Line);
+		for (int i = 0; i < drawingScreen.excludeStart.size; i++){
+			Vector2 st = drawingScreen.excludeStart.get(i);
+			Vector2 en = drawingScreen.excludeEnd.get(i);
 			int thick = 1;
 //				if (0 == t)
 			shape.line(st, en);
