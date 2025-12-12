@@ -16,21 +16,36 @@ export class DrawingScreen {
     }
 
     setupCanvas() {
-        this.canvas.width = this.canvas.offsetWidth * window.devicePixelRatio;
-        this.canvas.height = this.canvas.offsetHeight * window.devicePixelRatio;
+        // Use stable dimensions
+        const width = this.canvas.offsetWidth;
+        const height = this.canvas.offsetHeight;
+
+        this.canvas.width = width * window.devicePixelRatio;
+        this.canvas.height = height * window.devicePixelRatio;
         this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
-        window.addEventListener('resize', () => {
-            this.setupCanvas();
-            this.render();
-        });
+        // Debounced resize handler
+        let resizeTimeout = null;
+        const handleResize = () => {
+            if (resizeTimeout) clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                this.setupCanvas();
+                this.render();
+            }, 100);
+        };
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
     }
 
     setupEventListeners() {
-        this.canvas.addEventListener('click', (e) => {
+        const handlePointerDown = (e) => {
+            e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
 
             if (this.isFirstPoint) {
                 this.start.push(new Vector2(x, y));
@@ -42,16 +57,27 @@ export class DrawingScreen {
 
             this.isFirstPoint = !this.isFirstPoint;
             this.render();
-        });
+        };
 
-        this.canvas.addEventListener('mousemove', (e) => {
+        const handlePointerMove = (e) => {
             if (this.currentPoint) {
+                e.preventDefault();
                 const rect = this.canvas.getBoundingClientRect();
-                this.currentPoint.x = e.clientX - rect.left;
-                this.currentPoint.y = e.clientY - rect.top;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                this.currentPoint.x = clientX - rect.left;
+                this.currentPoint.y = clientY - rect.top;
                 this.render();
             }
-        });
+        };
+
+        // Mouse events
+        this.canvas.addEventListener('click', handlePointerDown);
+        this.canvas.addEventListener('mousemove', handlePointerMove);
+
+        // Touch events for mobile
+        this.canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+        this.canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
     }
 
     clear() {

@@ -59,15 +59,42 @@ class App {
     }
 
     setupMainCanvas() {
+        // Store initial viewport dimensions to prevent mobile browser UI changes from affecting canvas
+        let lastWidth = 0;
+        let lastHeight = 0;
+        let resizeTimeout = null;
+
         const resize = () => {
-            this.mainCanvas.width = window.innerWidth * window.devicePixelRatio;
-            this.mainCanvas.height = window.innerHeight * window.devicePixelRatio;
-            this.mainCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
-            this.render();
+            // Use clientWidth/clientHeight which are more stable on mobile
+            const width = document.documentElement.clientWidth || window.innerWidth;
+            const height = document.documentElement.clientHeight || window.innerHeight;
+
+            // Only resize if dimensions actually changed significantly
+            if (Math.abs(width - lastWidth) > 10 || Math.abs(height - lastHeight) > 10) {
+                lastWidth = width;
+                lastHeight = height;
+
+                this.mainCanvas.width = width * window.devicePixelRatio;
+                this.mainCanvas.height = height * window.devicePixelRatio;
+                this.mainCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                this.render();
+            }
+        };
+
+        const debouncedResize = () => {
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+            resizeTimeout = setTimeout(resize, 100);
         };
 
         resize();
-        window.addEventListener('resize', resize);
+        window.addEventListener('resize', debouncedResize);
+
+        // Also handle orientation changes on mobile
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resize, 100);
+        });
     }
 
     setupEventListeners() {
@@ -162,8 +189,9 @@ class App {
     }
 
     render() {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        // Use stable dimensions
+        const width = document.documentElement.clientWidth || window.innerWidth;
+        const height = document.documentElement.clientHeight || window.innerHeight;
 
         // Clear canvas
         this.mainCtx.fillStyle = '#000';
