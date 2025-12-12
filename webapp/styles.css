@@ -227,14 +227,32 @@ input[type="range"]::-moz-range-thumb {
     display: flex;
     gap: 10px;
     align-items: center;
+    flex-wrap: wrap;
+}
+
+.drawing-modes {
+    display: flex;
+    gap: 5px;
+}
+
+.mode-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+.mode-btn.active {
+    background: #2196F3;
+    border-color: #1976D2;
+    color: white;
 }
 
 .instruction {
-    margin-left: auto;
+    flex: 1 1 100%;
+    margin-top: 10px;
     color: #4CAF50;
-    font-size: 14px;
+    font-size: 12px;
     background: rgba(0, 0, 0, 0.7);
-    padding: 10px 15px;
+    padding: 8px 12px;
     border-radius: 6px;
 }
 
