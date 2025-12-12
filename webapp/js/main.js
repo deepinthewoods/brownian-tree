@@ -30,7 +30,7 @@ class App {
 
         // Initialize settings panels
         this.settingsPanels = [];
-        for (let i = 1; i <= 4; i++) {
+        for (let i = 1; i <= 5; i++) {
             const container = document.getElementById(`settings${i}`);
             if (i === 1) {
                 // First panel is seed control

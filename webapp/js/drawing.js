@@ -72,7 +72,7 @@ export class DrawingScreen {
         };
 
         // Mouse events
-        this.canvas.addEventListener('click', handlePointerDown);
+        this.canvas.addEventListener('mousedown', handlePointerDown);
         this.canvas.addEventListener('mousemove', handlePointerMove);
 
         // Touch events for mobile
