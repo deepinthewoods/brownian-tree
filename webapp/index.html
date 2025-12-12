@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brownian Tree Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Main Screen -->
+        <div id="mainScreen" class="screen active">
+            <div class="top-controls">
+                <button id="resetBtn" class="btn">Reset</button>
+                <button id="drawBtn" class="btn">Draw</button>
+            </div>
+
+            <div class="settings-container">
+                <div class="settings-panel" id="settings1"></div>
+                <div class="settings-panel" id="settings2"></div>
+                <div class="settings-panel" id="settings3"></div>
+                <div class="settings-panel" id="settings4"></div>
+            </div>
+
+            <div class="bottom-controls">
+                <button id="exportBtn" class="btn btn-primary">Export</button>
+                <button id="saveConfigBtn" class="btn">Save Config</button>
+                <button id="loadConfigBtn" class="btn">Load Config</button>
+            </div>
+        </div>
+
+        <!-- Drawing Screen -->
+        <div id="drawingScreen" class="screen">
+            <div class="drawing-header">
+                <button id="clearDrawingBtn" class="btn">Clear</button>
+                <button id="backBtn" class="btn">Back</button>
+                <div class="instruction">Click to place start and end points of seed lines</div>
+            </div>
+            <canvas id="drawingCanvas"></canvas>
+        </div>
+
+        <!-- Export Screen -->
+        <div id="exportScreen" class="screen">
+            <div class="export-header">
+                <button id="backFromExportBtn" class="btn">Back</button>
+                <button id="downloadSvgBtn" class="btn btn-primary">Download SVG</button>
+            </div>
+            <div class="export-controls">
+                <label>
+                    Width (mm):
+                    <input type="number" id="exportWidth" value="210" min="1">
+                </label>
+                <label>
+                    Height (mm):
+                    <input type="number" id="exportHeight" value="297" min="1">
+                </label>
+                <label>
+                    DPI:
+                    <input type="number" id="exportDpi" value="300" min="72" step="1">
+                </label>
+            </div>
+            <div class="export-preview">
+                <canvas id="exportCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Canvas for main rendering -->
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
