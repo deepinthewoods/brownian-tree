@@ -264,6 +264,8 @@ input[type="range"]::-moz-range-thumb {
     height: 100%;
     cursor: crosshair;
     display: block;
+    z-index: 5;
+    pointer-events: auto;
 }
 
 /* Export Screen */
