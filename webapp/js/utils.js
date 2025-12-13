@@ -101,7 +101,12 @@ export class SeededRandom {
  * Check if two line segments intersect
  * Returns intersection point or null
  */
+let intersectionCheckCount = 0;
+let intersectionFoundCount = 0;
+
 export function intersectSegments(p1, p2, p3, p4) {
+    intersectionCheckCount++;
+
     const x1 = p1.x, y1 = p1.y;
     const x2 = p2.x, y2 = p2.y;
     const x3 = p3.x, y3 = p3.y;
@@ -117,10 +122,18 @@ export function intersectSegments(p1, p2, p3, p4) {
     const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
 
     if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+        intersectionFoundCount++;
+        if (intersectionFoundCount <= 5) {
+            console.log(`INTERSECTION FOUND! (#${intersectionFoundCount}) at (${x1 + t * (x2 - x1)}, ${y1 + t * (y2 - y1)})`);
+        }
         return new Vector2(
             x1 + t * (x2 - x1),
             y1 + t * (y2 - y1)
         );
+    }
+
+    if (intersectionCheckCount % 10000 === 0) {
+        console.log(`Intersection checks: ${intersectionCheckCount}, found: ${intersectionFoundCount}`);
     }
 
     return null;

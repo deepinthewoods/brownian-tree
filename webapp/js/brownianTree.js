@@ -374,6 +374,10 @@ export class BrownianTree {
     }
 
     render(ctx, offsetX = 0, offsetY = 0) {
+        if (this.start.length > 0) {
+            console.log(`render() called, drawing ${this.start.length} tree lines`);
+        }
+
         ctx.lineCap = 'round';
         ctx.lineWidth = 1;
 
