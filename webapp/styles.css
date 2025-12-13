@@ -178,6 +178,7 @@ input[type="range"]::-moz-range-thumb {
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid #444;
+    pointer-events: auto;
 }
 
 .btn:hover {
@@ -228,11 +229,13 @@ input[type="range"]::-moz-range-thumb {
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
+    pointer-events: none;
 }
 
 .drawing-modes {
     display: flex;
     gap: 5px;
+    pointer-events: auto;
 }
 
 .mode-btn {
@@ -254,6 +257,7 @@ input[type="range"]::-moz-range-thumb {
     background: rgba(0, 0, 0, 0.7);
     padding: 8px 12px;
     border-radius: 6px;
+    pointer-events: none;
 }
 
 #drawingCanvas {
