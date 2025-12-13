@@ -34,17 +34,16 @@ class App {
 
         // Initialize settings panels
         this.settingsPanels = [];
-        for (let i = 1; i <= 5; i++) {
-            const container = document.getElementById(`settings${i}`);
-            if (i === 1) {
-                // First panel is seed control
-                this.seedPanel = new SeedPanel(container, this.tree);
-            } else {
-                // Other panels are generation settings
-                const panel = new SettingsPanel(container, this.tree, (...args) => this.generate(...args));
-                this.settingsPanels.push(panel);
-            }
-        }
+        this.panelIdCounter = 2; // Start from 2 since we have settings1 and settings2
+
+        // First panel is seed control
+        const seedContainer = document.getElementById('settings1');
+        this.seedPanel = new SeedPanel(seedContainer, this.tree);
+
+        // Second panel is first generation settings
+        const settings2Container = document.getElementById('settings2');
+        const panel = new SettingsPanel(settings2Container, this.tree, (...args) => this.generate(...args));
+        this.settingsPanels.push(panel);
 
         // Setup canvas
         this.setupMainCanvas();
@@ -172,6 +171,30 @@ class App {
         document.getElementById('loadConfigBtn').addEventListener('click', () => {
             this.loadConfig();
         });
+
+        // Add panel button
+        document.getElementById('addPanelBtn').addEventListener('click', () => {
+            this.addSettingsPanel();
+        });
+    }
+
+    addSettingsPanel() {
+        this.panelIdCounter++;
+        const newId = `settings${this.panelIdCounter}`;
+
+        // Create new panel div
+        const newPanel = document.createElement('div');
+        newPanel.className = 'settings-panel';
+        newPanel.id = newId;
+
+        // Insert before the add button
+        const container = document.getElementById('settingsContainer');
+        const addBtn = document.getElementById('addPanelBtn');
+        container.insertBefore(newPanel, addBtn);
+
+        // Create settings panel instance
+        const panel = new SettingsPanel(newPanel, this.tree, (...args) => this.generate(...args));
+        this.settingsPanels.push(panel);
     }
 
     initializeDefaultTree() {
