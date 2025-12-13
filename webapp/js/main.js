@@ -282,10 +282,10 @@ class App {
             this.mainCtx.fillText(`${progress}%`, 10, 30);
         }
 
-        // Show line count
+        // Show line count (with debug info)
         this.mainCtx.fillStyle = '#FFFFFF';
         this.mainCtx.font = '16px sans-serif';
-        this.mainCtx.fillText(`lines: ${this.tree.start.length}`, 10, 50);
+        this.mainCtx.fillText(`lines: ${this.tree.start.length} | src: ${this.tree.adjustedSourceStart.length} | dst: ${this.tree.destStart.length}`, 10, 50);
     }
 
     animate() {
