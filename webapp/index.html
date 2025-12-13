@@ -22,6 +22,7 @@
                 <div class="settings-panel" id="settings2"></div>
                 <div class="settings-panel" id="settings3"></div>
                 <div class="settings-panel" id="settings4"></div>
+                <div class="settings-panel" id="settings5"></div>
             </div>
 
             <div class="bottom-controls">
@@ -35,8 +36,14 @@
         <div id="drawingScreen" class="screen">
             <div class="drawing-header">
                 <button id="clearDrawingBtn" class="btn">Clear</button>
+                <div class="drawing-modes">
+                    <button id="sourceModeBtn" class="btn mode-btn active" data-mode="source">Source</button>
+                    <button id="destModeBtn" class="btn mode-btn" data-mode="destination">Destination</button>
+                    <button id="excludeModeBtn" class="btn mode-btn" data-mode="exclude">Exclude</button>
+                    <button id="eraseModeBtn" class="btn mode-btn" data-mode="erase">Eraser</button>
+                </div>
                 <button id="backBtn" class="btn">Back</button>
-                <div class="instruction">Click to place start and end points of seed lines</div>
+                <div class="instruction">Click to draw lines. Source (cyan) spawns particles, Dest (green) attracts, Exclude (red) blocks</div>
             </div>
             <canvas id="drawingCanvas"></canvas>
         </div>

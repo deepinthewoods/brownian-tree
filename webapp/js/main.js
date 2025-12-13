@@ -8,6 +8,10 @@ class App {
     constructor() {
         this.tree = new BrownianTree();
 
+        // Generation progress tracking
+        this.isGenerating = false;
+        this.generationProgress = null;
+
         // Get DOM elements
         this.mainCanvas = document.getElementById('mainCanvas');
         this.mainCtx = this.mainCanvas.getContext('2d');
@@ -30,7 +34,7 @@ class App {
 
         // Initialize settings panels
         this.settingsPanels = [];
-        for (let i = 1; i <= 4; i++) {
+        for (let i = 1; i <= 5; i++) {
             const container = document.getElementById(`settings${i}`);
             if (i === 1) {
                 // First panel is seed control
@@ -113,11 +117,21 @@ class App {
             this.drawingScreen.clear();
         });
 
+        // Drawing mode buttons
+        const modeButtons = document.querySelectorAll('.mode-btn');
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                modeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const mode = btn.dataset.mode;
+                this.drawingScreen.setMode(mode);
+            });
+        });
+
         document.getElementById('backBtn').addEventListener('click', () => {
+            this.drawingScreen.makeAdjustedSourceLines();
             const seedLines = this.drawingScreen.getSeedLines();
-            if (seedLines.start.length > 0) {
-                this.tree.setSeedLines(seedLines.start, seedLines.end);
-            }
+            this.tree.setSeedLines(seedLines);
             this.showMainScreen();
         });
 
@@ -163,28 +177,41 @@ class App {
         const centerY = 450;
         const size = 20;
 
-        const seedStart = [
+        const sourceStart = [
             new Vector2(centerX - size, centerY - size)
         ];
-        const seedEnd = [
+        const sourceEnd = [
             new Vector2(centerX + size, centerY + size)
         ];
 
-        this.tree.setSeedLines(seedStart, seedEnd);
+        const seedLines = {
+            start: sourceStart,
+            end: sourceEnd,
+            sourceStart: sourceStart,
+            sourceEnd: sourceEnd,
+            destStart: [],
+            destEnd: [],
+            excludeStart: [],
+            excludeEnd: []
+        };
+
+        this.tree.setSeedLines(seedLines);
     }
 
-    async generate(outside, nearest, lineCount, angle) {
-        console.log('Generating tree:', { outside, nearest, lineCount, angle });
+    async generate(nearest, lineCount, angle, childLimit, randomStart, lineMin, lineMax) {
+        console.log('Generating tree:', { nearest, lineCount, angle, childLimit, randomStart, lineMin, lineMax });
 
-        // Reset tree before generation
-        this.tree.reset();
+        // Track generation progress
+        this.generationProgress = { current: 0, total: lineCount };
+        this.isGenerating = true;
 
         // Generate with progress updates
-        await this.tree.createTree(outside, nearest, lineCount, angle, (current, total) => {
-            // Update could be shown in UI
-            console.log(`Progress: ${current}/${total}`);
+        await this.tree.createTree(nearest, lineCount, angle, childLimit, randomStart, lineMin, lineMax, (current, total) => {
+            this.generationProgress = { current, total };
         });
 
+        this.isGenerating = false;
+        this.generationProgress = null;
         this.render();
     }
 
@@ -212,6 +239,19 @@ class App {
 
         // Restore context
         this.mainCtx.restore();
+
+        // Show progress during generation
+        if (this.isGenerating && this.generationProgress) {
+            const progress = Math.floor((this.generationProgress.current / this.generationProgress.total) * 100);
+            this.mainCtx.fillStyle = '#00FF00';
+            this.mainCtx.font = '20px sans-serif';
+            this.mainCtx.fillText(`${progress}%`, 10, 30);
+        }
+
+        // Show line count
+        this.mainCtx.fillStyle = '#FFFFFF';
+        this.mainCtx.font = '16px sans-serif';
+        this.mainCtx.fillText(`lines: ${this.tree.start.length}`, 10, 50);
     }
 
     animate() {

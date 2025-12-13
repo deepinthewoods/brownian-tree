@@ -9,13 +9,20 @@ export class BrownianTree {
         // Arrays to store line segments
         this.start = [];
         this.end = [];
-        this.centre = [];
         this.parent = [];
         this.thickness = [];
 
-        // Seed lines (user-drawn)
-        this.seedStart = [];
-        this.seedEnd = [];
+        // Different line types from drawing
+        this.sourceStart = [];
+        this.sourceEnd = [];
+        this.destStart = [];
+        this.destEnd = [];
+        this.excludeStart = [];
+        this.excludeEnd = [];
+        this.adjustedSourceStart = [];
+        this.adjustedSourceEnd = [];
+        this.shouldStopGenerating = [];
+        this.shouldStopTotal = 0;
 
         // Random number generator
         this.random = new SeededRandom();
@@ -31,6 +38,7 @@ export class BrownianTree {
         // Generation state
         this.isGenerating = false;
         this.generationCancelled = false;
+        this.maxDistance = 0;
     }
 
     setSeed(seed) {
@@ -45,93 +53,108 @@ export class BrownianTree {
         this.start = [];
         this.end = [];
         this.parent = [];
-        this.centre = [];
         this.thickness = [];
-
-        // Add seed lines
-        for (let i = 0; i < this.seedStart.length; i++) {
-            this.start.push(this.seedStart[i].copy());
-            this.end.push(this.seedEnd[i].copy());
-            const c = this.seedStart[i].copy().lerp(this.seedEnd[i], 0.5);
-            this.centre.push(c);
-            this.parent.push(-1);
-        }
-
-        this.calculateThicknesses();
+        this.postCalculations();
     }
 
-    setSeedLines(seedStart, seedEnd) {
-        this.seedStart = seedStart.map(v => v.copy());
-        this.seedEnd = seedEnd.map(v => v.copy());
+    setSeedLines(seedLines) {
+        this.adjustedSourceStart = seedLines.start.map(v => v.copy());
+        this.adjustedSourceEnd = seedLines.end.map(v => v.copy());
+        this.sourceStart = seedLines.sourceStart.map(v => v.copy());
+        this.sourceEnd = seedLines.sourceEnd.map(v => v.copy());
+        this.destStart = seedLines.destStart.map(v => v.copy());
+        this.destEnd = seedLines.destEnd.map(v => v.copy());
+        this.excludeStart = seedLines.excludeStart.map(v => v.copy());
+        this.excludeEnd = seedLines.excludeEnd.map(v => v.copy());
+        this.shouldStopGenerating = new Array(this.adjustedSourceStart.length).fill(false);
+        this.shouldStopTotal = 0;
         this.reset();
     }
 
-    calculateThicknesses() {
-        const t = new Array(this.start.length).fill(0);
-        const children = new Array(this.start.length).fill(0);
-
-        // Count children for each segment
-        for (let i = this.seedStart.length; i < this.start.length; i++) {
-            if (this.parent[i] !== -1) {
-                children[this.parent[i]]++;
+    postCalculations() {
+        // Find source connections
+        const sourceConnections = [];
+        for (let i = 0; i < this.start.length; i++) {
+            if (this.collideSource(this.start[i], this.end[i])) {
+                sourceConnections.push(i);
             }
         }
 
-        // Calculate thickness based on leaf-to-root paths
-        for (let i = this.seedStart.length; i < this.start.length; i++) {
-            if (children[i] === 0) {
-                let current = i;
-                while (this.parent[current] !== -1) {
-                    current = this.parent[current];
-                    t[current] = Math.min(this.MAX_THICKNESS, t[current] + 1);
+        // Calculate distance from main line (distance-based coloring)
+        const mainLineDistance = new Array(this.start.length).fill(Number.MAX_VALUE);
+
+        // Mark source-connected lines as distance 0
+        for (let i = 0; i < sourceConnections.length; i++) {
+            let currentIdx = sourceConnections[i];
+            while (currentIdx !== -1) {
+                mainLineDistance[currentIdx] = 0;
+                currentIdx = this.parent[currentIdx];
+            }
+        }
+
+        // BFS for distance from main path
+        let changed;
+        do {
+            changed = false;
+            for (let i = 0; i < this.start.length; i++) {
+                if (mainLineDistance[i] === Number.MAX_VALUE) {
+                    const parentDist = this.parent[i] === -1 ? Number.MAX_VALUE : mainLineDistance[this.parent[i]];
+                    if (parentDist !== Number.MAX_VALUE) {
+                        mainLineDistance[i] = parentDist + 1;
+                        this.maxDistance = Math.max(this.maxDistance, mainLineDistance[i]);
+                        changed = true;
+                    }
                 }
             }
-        }
+        } while (changed);
 
-        // Normalize and apply interpolation
-        let maxThickness = 0;
-        for (let i = 0; i < this.start.length; i++) {
-            maxThickness = Math.max(maxThickness, t[i]);
-        }
-
-        this.thickness = [];
-        for (let i = 0; i < this.start.length; i++) {
-            const delta = maxThickness > 0 ? t[i] / maxThickness : 0;
-            this.thickness[i] = Math.floor(Interpolation.exp10In(0, this.MAX_THICKNESS, delta));
-        }
+        this.thickness = mainLineDistance;
     }
 
-    async createTree(outside, nearest, targetLineCount, angle, onProgress = null) {
+    collideSource(a, b) {
+        const v = new Vector2(a.x, a.y).sub(b).nor().scl(0.1).add(b);
+        for (let i = 0; i < this.adjustedSourceEnd.length; i++) {
+            const st = this.adjustedSourceStart[i];
+            const en = this.adjustedSourceEnd[i];
+            if (intersectSegments(a, v, st, en)) return true;
+        }
+        return false;
+    }
+
+    async createTree(nearest, targetLineCount, angle, childLimit, randomStart, lineLengthMin, lineLengthMax, onProgress = null) {
         this.isGenerating = true;
         this.generationCancelled = false;
 
-        const maxTries = 221100;
-        const lineLengthMax = 27;
-        const lineLengthMin = 14;
+        // Swap if min > max
+        if (lineLengthMin > lineLengthMax) {
+            [lineLengthMin, lineLengthMax] = [lineLengthMax, lineLengthMin];
+        }
 
+        const maxTries = targetLineCount * 10;
         let tries = 0;
         let createdLines = 0;
         let lastProgressUpdate = 0;
 
         while (tries++ < maxTries && createdLines < targetLineCount && !this.generationCancelled) {
             // Spawn point
-            if (outside) {
-                const side = this.random.nextInt(0, 3);
-                switch (side) {
-                    case 0: this.a.set(this.random.nextFloat(0, this.width), 0); break;
-                    case 1: this.a.set(this.random.nextFloat(0, this.width), this.height); break;
-                    case 2: this.a.set(0, this.random.nextFloat(0, this.height)); break;
-                    case 3: this.a.set(this.width, this.random.nextFloat(0, this.height)); break;
-                }
+            let sourceIndex = -1;
+            if (randomStart) {
+                this.a.set(this.random.nextFloat(0, this.width), this.random.nextFloat(0, this.height));
             } else {
-                this.a.set(
-                    this.random.nextFloat(0, this.width),
-                    this.random.nextFloat(0, this.height)
-                );
+                if (this.shouldStopTotal === this.adjustedSourceStart.length) break;
+                let foundStart = false;
+                while (!foundStart) {
+                    sourceIndex = this.random.nextInt(0, this.adjustedSourceStart.length - 1);
+                    if (this.shouldStopGenerating[sourceIndex]) continue;
+                    this.a.set(this.adjustedSourceStart[sourceIndex].x, this.adjustedSourceStart[sourceIndex].y);
+                    const alpha = this.random.nextFloat(0, 1);
+                    this.a.lerp(this.adjustedSourceEnd[sourceIndex], alpha);
+                    break;
+                }
             }
 
             // Calculate line length based on progress
-            const lineLengthDelta = this.start.length / targetLineCount;
+            const lineLengthDelta = createdLines / targetLineCount;
             const lineLength = lineLengthMax + (lineLengthMin - lineLengthMax) * lineLengthDelta;
 
             let hasCollided = false;
@@ -141,15 +164,14 @@ export class BrownianTree {
             while (moveTries++ < 1000 && !hasCollided) {
                 this.v.set(-lineLength, 0);
 
-                // Set target (nearest point or center)
+                let targetAngle;
                 if (nearest) {
                     this.setClosestPoint(this.target, this.a);
+                    targetAngle = this.tmp.set(this.a.x, this.a.y).sub(this.target).angleDeg();
                 } else {
-                    this.target.set(this.width / 2, this.height / 2);
+                    targetAngle = this.random.nextFloat(0, 360);
                 }
 
-                // Calculate angle towards target with variation
-                const targetAngle = this.tmp.set(this.a.x, this.a.y).sub(this.target).angleDeg();
                 this.v.rotateDeg(this.random.nextFloat(-angle, angle) + targetAngle);
                 this.b.set(this.a.x, this.a.y).add(this.v);
 
@@ -161,16 +183,51 @@ export class BrownianTree {
 
                 // Check collision
                 const collIndex = this.collide(this.a, this.b, this.intersect);
-                if (collIndex !== -1) {
+                if (collIndex.index !== -1) {
                     hasCollided = true;
-                    if (moveTries === 1) continue;
+                    if (collIndex.index === -2) continue; // Hit exclude line
+
+                    if (moveTries <= 1 && !randomStart) {
+                        if (sourceIndex !== -1) {
+                            this.shouldStopGenerating[sourceIndex] = true;
+                            this.shouldStopTotal++;
+                        }
+                    }
 
                     // Add new line segment
                     this.start.push(this.a.copy());
                     this.end.push(this.intersect.copy());
-                    const c = this.a.copy().lerp(this.intersect, 0.5);
-                    this.centre.push(c);
-                    this.parent.push(collIndex);
+                    this.parent.push(collIndex.index);
+
+                    // Subdivision logic
+                    if (collIndex.index !== -1) {
+                        const parentStart = this.start[collIndex.index];
+                        const parentEnd = this.end[collIndex.index];
+
+                        if (this.intersect.dst2(parentStart) < 0.1) {
+                            // Close to start - merge
+                            this.end[this.end.length - 1].set(parentStart.x, parentStart.y);
+                        } else if (this.intersect.dst2(parentEnd) < 0.1) {
+                            // Close to end - connect with grandparent
+                            if (this.parent[collIndex.index] !== -1) {
+                                this.parent[this.parent.length - 1] = this.parent[collIndex.index];
+                                const grandparentStart = this.start[this.parent[collIndex.index]];
+                                this.end[this.end.length - 1].set(grandparentStart.x, grandparentStart.y);
+                            }
+                        } else {
+                            // Subdivide parent
+                            const extraStart = this.intersect.copy();
+                            const extraEnd = parentEnd.copy();
+                            parentEnd.set(this.intersect.x, this.intersect.y);
+                            const extraParent = this.parent[collIndex.index];
+
+                            this.start.push(extraStart);
+                            this.end.push(extraEnd);
+                            this.parent.push(extraParent);
+                            this.parent[collIndex.index] = this.parent.length - 1;
+                        }
+                    }
+
                     createdLines++;
                 }
 
@@ -185,7 +242,7 @@ export class BrownianTree {
             }
         }
 
-        this.calculateThicknesses();
+        this.postCalculations();
         this.isGenerating = false;
 
         if (onProgress) {
@@ -200,13 +257,37 @@ export class BrownianTree {
     }
 
     setClosestPoint(target, a) {
+        const distanceToSegment = (s, e, p) => {
+            const l2 = s.dst2(e);
+            if (l2 === 0) return p.dst(s);
+            const t = Math.max(0, Math.min(1, ((p.x - s.x) * (e.x - s.x) + (p.y - s.y) * (e.y - s.y)) / l2));
+            const projection = new Vector2(s.x + t * (e.x - s.x), s.y + t * (e.y - s.y));
+            return { dist: p.dst(projection), point: projection };
+        };
+
         let dist = Number.MAX_VALUE;
-        for (let i = 0; i < this.centre.length; i++) {
-            const d = a.dst2(this.centre[i]);
-            if (d < dist) {
-                dist = d;
-                target.set(this.centre[i].x, this.centre[i].y);
+        let closestPoint = null;
+
+        // Check existing tree segments
+        for (let i = 0; i < this.start.length; i++) {
+            const result = distanceToSegment(this.start[i], this.end[i], a);
+            if (result.dist < dist) {
+                dist = result.dist;
+                closestPoint = result.point;
             }
+        }
+
+        // Check destination lines
+        for (let i = 0; i < this.destStart.length; i++) {
+            const result = distanceToSegment(this.destStart[i], this.destEnd[i], a);
+            if (result.dist < dist) {
+                dist = result.dist;
+                closestPoint = result.point;
+            }
+        }
+
+        if (closestPoint) {
+            target.set(closestPoint.x, closestPoint.y);
         }
     }
 
@@ -214,6 +295,7 @@ export class BrownianTree {
         let dist = Number.MAX_VALUE;
         let collIndex = -1;
 
+        // Check collisions with existing tree segments
         for (let i = 0; i < this.start.length; i++) {
             const st = this.start[i];
             const en = this.end[i];
@@ -229,28 +311,108 @@ export class BrownianTree {
             }
         }
 
-        return collIndex;
+        // Check collisions with destination lines
+        for (let i = 0; i < this.destStart.length; i++) {
+            const st = this.destStart[i];
+            const en = this.destEnd[i];
+            const intersection = intersectSegments(a, b, st, en);
+
+            if (intersection) {
+                const d = intersection.dst(a);
+                if (d < dist) {
+                    dist = d;
+                    collPoint.set(intersection.x, intersection.y);
+                    collIndex = -1; // Destination collision
+                }
+            }
+        }
+
+        // Check collisions with exclude lines
+        for (let i = 0; i < this.excludeStart.length; i++) {
+            const st = this.excludeStart[i];
+            const en = this.excludeEnd[i];
+            const intersection = intersectSegments(a, b, st, en);
+
+            if (intersection) {
+                const d = intersection.dst(a);
+                if (d < dist) {
+                    dist = d;
+                    collPoint.set(intersection.x, intersection.y);
+                    collIndex = -2; // Exclude collision
+                }
+            }
+        }
+
+        return { index: collIndex };
     }
 
     render(ctx, offsetX = 0, offsetY = 0) {
-        ctx.strokeStyle = 'white';
         ctx.lineCap = 'round';
+        ctx.lineWidth = 1;
 
-        // Draw lines grouped by thickness
-        for (let t = 0; t <= this.MAX_THICKNESS; t++) {
-            ctx.lineWidth = t + 2.0;
-            ctx.beginPath();
+        // Draw tree lines with distance-based coloring
+        const mainColor = { r: 255, g: 0, b: 0 }; // Red
+        const tipColor = { r: 0, g: 255, b: 0 };  // Green
 
-            for (let i = 0; i < this.start.length; i++) {
-                if (this.thickness[i] === t) {
-                    const st = this.start[i];
-                    const en = this.end[i];
-                    ctx.moveTo(st.x + offsetX, st.y + offsetY);
-                    ctx.lineTo(en.x + offsetX, en.y + offsetY);
-                }
+        for (let i = 0; i < this.start.length; i++) {
+            const st = this.start[i];
+            const en = this.end[i];
+            const dist = this.thickness[i];
+
+            if (dist === 0) {
+                ctx.strokeStyle = 'white';
+            } else {
+                const lerpFactor = Math.min(dist / this.maxDistance, 1);
+                const r = Math.floor(mainColor.r + (tipColor.r - mainColor.r) * lerpFactor);
+                const g = Math.floor(mainColor.g + (tipColor.g - mainColor.g) * lerpFactor);
+                const b = Math.floor(mainColor.b + (tipColor.b - mainColor.b) * lerpFactor);
+                ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
             }
 
+            ctx.beginPath();
+            ctx.moveTo(st.x + offsetX, st.y + offsetY);
+            ctx.lineTo(en.x + offsetX, en.y + offsetY);
             ctx.stroke();
+        }
+
+        // Draw destination lines (green)
+        ctx.strokeStyle = '#00FF00';
+        for (let i = 0; i < this.destStart.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.destStart[i].x + offsetX, this.destStart[i].y + offsetY);
+            ctx.lineTo(this.destEnd[i].x + offsetX, this.destEnd[i].y + offsetY);
+            ctx.stroke();
+        }
+
+        // Draw exclude lines (red)
+        ctx.strokeStyle = '#FF0000';
+        for (let i = 0; i < this.excludeStart.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.excludeStart[i].x + offsetX, this.excludeStart[i].y + offsetY);
+            ctx.lineTo(this.excludeEnd[i].x + offsetX, this.excludeEnd[i].y + offsetY);
+            ctx.stroke();
+        }
+
+        // Draw source lines (cyan)
+        ctx.strokeStyle = '#00FFFF';
+        for (let i = 0; i < this.adjustedSourceStart.length; i++) {
+            if (!this.shouldStopGenerating[i]) {
+                ctx.beginPath();
+                ctx.moveTo(this.adjustedSourceStart[i].x + offsetX, this.adjustedSourceStart[i].y + offsetY);
+                ctx.lineTo(this.adjustedSourceEnd[i].x + offsetX, this.adjustedSourceEnd[i].y + offsetY);
+                ctx.stroke();
+            }
+        }
+
+        // Draw stopped source lines (blue)
+        ctx.strokeStyle = '#0000FF';
+        for (let i = 0; i < this.adjustedSourceStart.length; i++) {
+            if (this.shouldStopGenerating[i]) {
+                ctx.beginPath();
+                ctx.moveTo(this.adjustedSourceStart[i].x + offsetX, this.adjustedSourceStart[i].y + offsetY);
+                ctx.lineTo(this.adjustedSourceEnd[i].x + offsetX, this.adjustedSourceEnd[i].y + offsetY);
+                ctx.stroke();
+            }
         }
     }
 

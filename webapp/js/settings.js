@@ -5,10 +5,13 @@ export class SettingsPanel {
         this.onGenerate = onGenerate;
 
         this.settings = {
-            outside: true,
-            nearest: true,
+            nearest: false,
+            randomStart: false,
             lineCount: 1000,
-            angle: 45
+            angle: 45,
+            childLimit: 1000,
+            lineMin: 15,
+            lineMax: 30
         };
 
         this.render();
@@ -19,14 +22,14 @@ export class SettingsPanel {
             <h3>Generation Settings</h3>
             <div class="setting-group">
                 <label>
-                    <input type="checkbox" id="outside" ${this.settings.outside ? 'checked' : ''}>
-                    Spawn from outside
+                    <input type="checkbox" id="nearest" ${this.settings.nearest ? 'checked' : ''}>
+                    Go Towards Nearest
                 </label>
             </div>
             <div class="setting-group">
                 <label>
-                    <input type="checkbox" id="nearest" ${this.settings.nearest ? 'checked' : ''}>
-                    Go towards nearest
+                    <input type="checkbox" id="randomStart" ${this.settings.randomStart ? 'checked' : ''}>
+                    Random Start Point
                 </label>
             </div>
             <div class="setting-group">
@@ -44,7 +47,31 @@ export class SettingsPanel {
                         <span>Angle</span>
                         <span class="value" id="angleValue">${this.settings.angle}°</span>
                     </div>
-                    <input type="range" id="angle" min="1" max="360" value="${this.settings.angle}">
+                    <input type="range" id="angle" min="1" max="180" value="${this.settings.angle}" ${!this.settings.nearest ? 'disabled' : ''}>
+                </div>
+            </div>
+            <div class="setting-group">
+                <label>
+                    <span>Child Limit:</span>
+                    <input type="number" id="childLimit" value="${this.settings.childLimit}" min="1" style="width: 100px; padding: 4px;">
+                </label>
+            </div>
+            <div class="setting-group">
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Line Min</span>
+                        <span class="value" id="lineMinValue">${this.settings.lineMin}</span>
+                    </div>
+                    <input type="range" id="lineMin" min="1" max="50" value="${this.settings.lineMin}">
+                </div>
+            </div>
+            <div class="setting-group">
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Line Max</span>
+                        <span class="value" id="lineMaxValue">${this.settings.lineMax}</span>
+                    </div>
+                    <input type="range" id="lineMax" min="1" max="50" value="${this.settings.lineMax}">
                 </div>
             </div>
             <button class="btn btn-go" id="goBtn">Generate</button>
@@ -54,20 +81,26 @@ export class SettingsPanel {
     }
 
     setupEventListeners() {
-        const outside = this.container.querySelector('#outside');
         const nearest = this.container.querySelector('#nearest');
+        const randomStart = this.container.querySelector('#randomStart');
         const lineCount = this.container.querySelector('#lineCount');
         const lineCountValue = this.container.querySelector('#lineCountValue');
         const angle = this.container.querySelector('#angle');
         const angleValue = this.container.querySelector('#angleValue');
+        const childLimit = this.container.querySelector('#childLimit');
+        const lineMin = this.container.querySelector('#lineMin');
+        const lineMinValue = this.container.querySelector('#lineMinValue');
+        const lineMax = this.container.querySelector('#lineMax');
+        const lineMaxValue = this.container.querySelector('#lineMaxValue');
         const goBtn = this.container.querySelector('#goBtn');
-
-        outside.addEventListener('change', (e) => {
-            this.settings.outside = e.target.checked;
-        });
 
         nearest.addEventListener('change', (e) => {
             this.settings.nearest = e.target.checked;
+            angle.disabled = !e.target.checked;
+        });
+
+        randomStart.addEventListener('change', (e) => {
+            this.settings.randomStart = e.target.checked;
         });
 
         lineCount.addEventListener('input', (e) => {
@@ -80,12 +113,29 @@ export class SettingsPanel {
             angleValue.textContent = `${this.settings.angle}°`;
         });
 
+        childLimit.addEventListener('input', (e) => {
+            this.settings.childLimit = parseInt(e.target.value) || 1000;
+        });
+
+        lineMin.addEventListener('input', (e) => {
+            this.settings.lineMin = parseInt(e.target.value);
+            lineMinValue.textContent = this.settings.lineMin;
+        });
+
+        lineMax.addEventListener('input', (e) => {
+            this.settings.lineMax = parseInt(e.target.value);
+            lineMaxValue.textContent = this.settings.lineMax;
+        });
+
         goBtn.addEventListener('click', () => {
             this.onGenerate(
-                this.settings.outside,
                 this.settings.nearest,
                 this.settings.lineCount,
-                this.settings.angle
+                this.settings.angle,
+                this.settings.childLimit,
+                this.settings.randomStart,
+                this.settings.lineMin,
+                this.settings.lineMax
             );
         });
     }
