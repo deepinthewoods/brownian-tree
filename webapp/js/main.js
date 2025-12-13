@@ -12,9 +12,18 @@ class App {
         this.isGenerating = false;
         this.generationProgress = null;
 
+        // Debug logging throttle
+        this.lastLogTime = 0;
+        this.logInterval = 1000; // Log every 1 second
+
         // Get DOM elements
         this.mainCanvas = document.getElementById('mainCanvas');
         this.mainCtx = this.mainCanvas.getContext('2d');
+
+        // Progress bar elements
+        this.progressContainer = document.getElementById('progressContainer');
+        this.progressBar = document.getElementById('progressBar');
+        this.progressText = document.getElementById('progressText');
 
         // Screens
         this.mainScreen = document.getElementById('mainScreen');
@@ -239,14 +248,29 @@ class App {
         this.generationProgress = { current: 0, total: lineCount };
         this.isGenerating = true;
 
+        // Show progress bar
+        this.progressContainer.style.display = 'block';
+        this.updateProgressBar(0, lineCount);
+
         // Generate with progress updates
         await this.tree.createTree(nearest, lineCount, angle, childLimit, randomStart, lineMin, lineMax, (current, total) => {
             this.generationProgress = { current, total };
+            this.updateProgressBar(current, total);
         });
 
         this.isGenerating = false;
         this.generationProgress = null;
+
+        // Hide progress bar
+        this.progressContainer.style.display = 'none';
+
         this.render();
+    }
+
+    updateProgressBar(current, total) {
+        const percent = Math.floor((current / total) * 100);
+        this.progressBar.style.width = `${percent}%`;
+        this.progressText.textContent = `${percent}%`;
     }
 
     render() {
@@ -263,6 +287,18 @@ class App {
         const offsetX = (width - this.tree.width * scale) / 2;
         const offsetY = (height - this.tree.height * scale) / 2;
 
+        // Throttled logging (every 1 second)
+        const now = Date.now();
+        if (now - this.lastLogTime >= this.logInterval) {
+            this.lastLogTime = now;
+            console.log('main render():', {
+                canvasSize: { width, height },
+                treeSize: { width: this.tree.width, height: this.tree.height },
+                transform: { scale, offsetX, offsetY },
+                treeLineCount: this.tree.start.length
+            });
+        }
+
         // Save context state
         this.mainCtx.save();
         this.mainCtx.translate(offsetX, offsetY);
@@ -273,14 +309,6 @@ class App {
 
         // Restore context
         this.mainCtx.restore();
-
-        // Show progress during generation
-        if (this.isGenerating && this.generationProgress) {
-            const progress = Math.floor((this.generationProgress.current / this.generationProgress.total) * 100);
-            this.mainCtx.fillStyle = '#00FF00';
-            this.mainCtx.font = '20px sans-serif';
-            this.mainCtx.fillText(`${progress}%`, 10, 30);
-        }
 
         // Show line count (with debug info)
         this.mainCtx.fillStyle = '#FFFFFF';

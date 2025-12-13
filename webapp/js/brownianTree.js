@@ -12,6 +12,10 @@ export class BrownianTree {
         this.parent = [];
         this.thickness = [];
 
+        // Debug logging throttle
+        this.lastRenderLogTime = 0;
+        this.renderLogInterval = 1000; // Log every 1 second
+
         // Different line types from drawing
         this.sourceStart = [];
         this.sourceEnd = [];
@@ -374,8 +378,25 @@ export class BrownianTree {
     }
 
     render(ctx, offsetX = 0, offsetY = 0) {
-        if (this.start.length > 0) {
-            console.log(`render() called, drawing ${this.start.length} tree lines`);
+        // Throttled enhanced logging
+        const now = Date.now();
+        if (now - this.lastRenderLogTime >= this.renderLogInterval) {
+            this.lastRenderLogTime = now;
+            if (this.start.length > 0) {
+                console.log(`BrownianTree.render():`, {
+                    lineCount: this.start.length,
+                    maxDistance: this.maxDistance,
+                    offsetX,
+                    offsetY,
+                    sampleLine: {
+                        start: this.start[0],
+                        end: this.end[0],
+                        thickness: this.thickness[0]
+                    }
+                });
+            } else {
+                console.log('BrownianTree.render() - NO tree lines (start.length === 0)');
+            }
         }
 
         ctx.lineCap = 'round';
