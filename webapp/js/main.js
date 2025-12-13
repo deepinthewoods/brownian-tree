@@ -80,6 +80,9 @@ class App {
 
                 this.mainCanvas.width = width * window.devicePixelRatio;
                 this.mainCanvas.height = height * window.devicePixelRatio;
+
+                // Reset transform before scaling to prevent cumulative scaling
+                this.mainCtx.setTransform(1, 0, 0, 1, 0, 0);
                 this.mainCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
                 this.render();
             }
