@@ -6,6 +6,10 @@ export class DrawingScreen {
         this.ctx = canvas.getContext('2d');
         this.onBack = onBack;
 
+        // Tree coordinate space (must match BrownianTree dimensions)
+        this.treeWidth = 900;
+        this.treeHeight = 900;
+
         // Different line types
         this.sourceStart = [];
         this.sourceEnd = [];
@@ -35,9 +39,9 @@ export class DrawingScreen {
     }
 
     setupCanvas() {
-        // Use stable dimensions
-        const width = this.canvas.offsetWidth;
-        const height = this.canvas.offsetHeight;
+        // Use same dimensions as main canvas (full viewport)
+        const width = document.documentElement.clientWidth || window.innerWidth;
+        const height = document.documentElement.clientHeight || window.innerHeight;
 
         this.canvas.width = width * window.devicePixelRatio;
         this.canvas.height = height * window.devicePixelRatio;
@@ -70,17 +74,48 @@ export class DrawingScreen {
         this.currentPoint = null;
     }
 
+    // Calculate the transform from screen to tree coordinates (matching main canvas)
+    getTransform() {
+        const width = document.documentElement.clientWidth || window.innerWidth;
+        const height = document.documentElement.clientHeight || window.innerHeight;
+        const scale = Math.min(width / this.treeWidth, height / this.treeHeight) * 0.8;
+        const offsetX = (width - this.treeWidth * scale) / 2;
+        const offsetY = (height - this.treeHeight * scale) / 2;
+        return { scale, offsetX, offsetY, width, height };
+    }
+
+    // Convert screen coordinates to tree coordinates
+    screenToTree(screenX, screenY) {
+        const { scale, offsetX, offsetY } = this.getTransform();
+        return new Vector2(
+            (screenX - offsetX) / scale,
+            (screenY - offsetY) / scale
+        );
+    }
+
+    // Convert tree coordinates to screen coordinates
+    treeToScreen(treeX, treeY) {
+        const { scale, offsetX, offsetY } = this.getTransform();
+        return new Vector2(
+            treeX * scale + offsetX,
+            treeY * scale + offsetY
+        );
+    }
+
     setupEventListeners() {
         const handlePointerDown = (e) => {
             e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
+            const screenX = clientX - rect.left;
+            const screenY = clientY - rect.top;
+
+            // Convert screen coordinates to tree coordinates
+            const treePos = this.screenToTree(screenX, screenY);
 
             if (this.mode === 'erase') {
-                this.erase(x, y);
+                this.erase(treePos.x, treePos.y);
                 this.render();
                 return;
             }
@@ -100,11 +135,11 @@ export class DrawingScreen {
             }
 
             if (this.isFirstPoint) {
-                this.current.set(x, y);
-                this.currentPoint = new Vector2(x, y);
+                this.current.set(treePos.x, treePos.y);
+                this.currentPoint = new Vector2(treePos.x, treePos.y);
             } else {
                 start.push(new Vector2(this.current.x, this.current.y));
-                end.push(new Vector2(x, y));
+                end.push(new Vector2(treePos.x, treePos.y));
                 this.currentPoint = null;
             }
 
@@ -117,8 +152,13 @@ export class DrawingScreen {
                 const rect = this.canvas.getBoundingClientRect();
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                this.currentPoint.x = clientX - rect.left;
-                this.currentPoint.y = clientY - rect.top;
+                const screenX = clientX - rect.left;
+                const screenY = clientY - rect.top;
+
+                // Convert screen coordinates to tree coordinates
+                const treePos = this.screenToTree(screenX, screenY);
+                this.currentPoint.x = treePos.x;
+                this.currentPoint.y = treePos.y;
                 this.render();
             }
         };
@@ -263,13 +303,18 @@ export class DrawingScreen {
     }
 
     render() {
-        const width = this.canvas.offsetWidth;
-        const height = this.canvas.offsetHeight;
+        const { scale, offsetX, offsetY, width, height } = this.getTransform();
 
+        // Clear canvas
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, width, height);
 
-        this.ctx.lineWidth = 3;
+        // Apply the same transform as main canvas
+        this.ctx.save();
+        this.ctx.translate(offsetX, offsetY);
+        this.ctx.scale(scale, scale);
+
+        this.ctx.lineWidth = 3 / scale; // Adjust line width to maintain consistent thickness
         this.ctx.lineCap = 'round';
 
         // Draw source lines (cyan)
@@ -314,6 +359,9 @@ export class DrawingScreen {
                 this.ctx.stroke();
             }
         }
+
+        // Restore context
+        this.ctx.restore();
     }
 
     show() {
