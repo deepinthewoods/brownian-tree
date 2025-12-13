@@ -210,13 +210,21 @@ class App {
             new Vector2(centerX + size, centerY + size)
         ];
 
+        // Add default destination line (perpendicular to source)
+        const destStart = [
+            new Vector2(centerX - size, centerY + size)
+        ];
+        const destEnd = [
+            new Vector2(centerX + size, centerY - size)
+        ];
+
         const seedLines = {
             start: sourceStart,
             end: sourceEnd,
             sourceStart: sourceStart,
             sourceEnd: sourceEnd,
-            destStart: [],
-            destEnd: [],
+            destStart: destStart,
+            destEnd: destEnd,
             excludeStart: [],
             excludeEnd: []
         };
