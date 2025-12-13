@@ -30,6 +30,25 @@ export class Vector2 {
         return this;
     }
 
+    scl(scalar) {
+        this.x *= scalar;
+        this.y *= scalar;
+        return this;
+    }
+
+    len() {
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+
+    nor() {
+        const length = this.len();
+        if (length !== 0) {
+            this.x /= length;
+            this.y /= length;
+        }
+        return this;
+    }
+
     lerp(v, alpha) {
         this.x += (v.x - this.x) * alpha;
         this.y += (v.y - this.y) * alpha;
