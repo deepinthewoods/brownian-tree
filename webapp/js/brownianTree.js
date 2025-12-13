@@ -198,7 +198,7 @@ export class BrownianTree {
 
                 // Check collision
                 const collIndex = this.collide(this.a, this.b, this.intersect);
-                if (collIndex.index !== -1) {
+                if (collIndex.index !== null) {
                     console.log('Collision detected! collIndex:', collIndex.index, 'at try', tries, 'createdLines:', createdLines);
                     hasCollided = true;
                     if (collIndex.index === -2) continue; // Hit exclude line
@@ -215,8 +215,8 @@ export class BrownianTree {
                     this.end.push(this.intersect.copy());
                     this.parent.push(collIndex.index);
 
-                    // Subdivision logic
-                    if (collIndex.index !== -1) {
+                    // Subdivision logic (only for collisions with existing tree segments)
+                    if (collIndex.index !== null && collIndex.index >= 0) {
                         const parentStart = this.start[collIndex.index];
                         const parentEnd = this.end[collIndex.index];
 
@@ -320,7 +320,7 @@ export class BrownianTree {
 
     collide(a, b, collPoint) {
         let dist = Number.MAX_VALUE;
-        let collIndex = -1;
+        let collIndex = null; // null = no collision
 
         // Check collisions with existing tree segments
         for (let i = 0; i < this.start.length; i++) {
@@ -349,7 +349,7 @@ export class BrownianTree {
                 if (d < dist) {
                     dist = d;
                     collPoint.set(intersection.x, intersection.y);
-                    collIndex = -1; // Destination collision
+                    collIndex = -1; // Destination collision (now distinct from null)
                 }
             }
         }
