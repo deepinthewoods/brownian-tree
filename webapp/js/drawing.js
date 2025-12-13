@@ -41,20 +41,27 @@ export class DrawingScreen {
 
         this.canvas.width = width * window.devicePixelRatio;
         this.canvas.height = height * window.devicePixelRatio;
+
+        // Reset transform before scaling to prevent cumulative scaling
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
-        // Debounced resize handler
-        let resizeTimeout = null;
-        const handleResize = () => {
-            if (resizeTimeout) clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                this.setupCanvas();
-                this.render();
-            }, 100);
-        };
+        // Only set up resize handlers once
+        if (!this.resizeHandlersAttached) {
+            this.resizeHandlersAttached = true;
 
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('orientationchange', handleResize);
+            let resizeTimeout = null;
+            const handleResize = () => {
+                if (resizeTimeout) clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    this.setupCanvas();
+                    this.render();
+                }, 100);
+            };
+
+            window.addEventListener('resize', handleResize);
+            window.addEventListener('orientationchange', handleResize);
+        }
     }
 
     setMode(mode) {
@@ -310,7 +317,10 @@ export class DrawingScreen {
     }
 
     show() {
-        this.setupCanvas();
-        this.render();
+        // Use requestAnimationFrame to ensure the screen is visible and layout is calculated
+        requestAnimationFrame(() => {
+            this.setupCanvas();
+            this.render();
+        });
     }
 }
