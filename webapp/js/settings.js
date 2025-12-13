@@ -19,7 +19,6 @@ export class SettingsPanel {
 
     render() {
         this.container.innerHTML = `
-            <h3>Generation Settings</h3>
             <div class="setting-group">
                 <label>
                     <input type="checkbox" id="nearest" ${this.settings.nearest ? 'checked' : ''}>
@@ -159,7 +158,6 @@ export class SeedPanel {
 
     render() {
         this.container.innerHTML = `
-            <h3>Random Seed</h3>
             <div class="setting-group">
                 <div class="seed-input">
                     <input type="text" id="seedInput" placeholder="Enter seed (optional)" value="${this.tree.getSeed()}">
