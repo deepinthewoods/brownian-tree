@@ -26,6 +26,7 @@ import com.badlogic.gdx.utils.ScreenUtils;
 import com.kotcrab.vis.ui.VisUI;
 
 import java.util.Arrays;
+import java.util.Comparator;
 
 public class BrownianTreeGen extends ApplicationAdapter {
 	private static final int MAX_THICKNESS = 2;
@@ -40,7 +41,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 	public Array<Vector2> end = new Array<Vector2>();
 
 
-	public IntArray parent = new IntArray(),  children = new IntArray();
+	public IntArray parent = new IntArray();
 
 	public IntArray thickness = new IntArray();
 
@@ -65,7 +66,6 @@ public class BrownianTreeGen extends ApplicationAdapter {
 	private SVGExporter exporter;
 	private BitmapFont font;
 
-	public IntArray sourceConnections = new IntArray();
 	private float maxDistance;
 
 	@Override
@@ -113,14 +113,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 			}
 		});
 
-		TextButton finalizeBtn = new TextButton("Finalize", skin);
-		finalizeBtn.addListener(new ClickListener(){
-			@Override
-			public void clicked(InputEvent event, float x, float y) {
-				finalizeTree();
-				super.clicked(event, x, y);
-			}
-		});
+
 
 		TextButton stopBtn = new TextButton("   STOP   ", skin);
 		stopBtn.addListener(new ClickListener(){
@@ -133,7 +126,7 @@ public class BrownianTreeGen extends ApplicationAdapter {
 
 		mainTable.add(resetBtn).left();
 		mainTable.add(drawBtn).left();
-		mainTable.add(finalizeBtn).left();
+
 		mainTable.add(exportBtn).left();
 		mainTable.add(stopBtn);
 		mainTable.add(new Actor()).expandX().row();
@@ -163,22 +156,27 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		start.clear();
 		end.clear();
 		parent.clear();
-		children.clear();
+
 		width = Gdx.graphics.getWidth();
 		height = Gdx.graphics.getHeight();
-		sourceConnections.clear();
+
 		postCalculations();
 	}
 
 
 
 	public void postCalculations() {
+		IntArray sourceConnections = new IntArray();
+		for (int i = 0; i < start.size; i++){
+			if (collideSource(start.get(i), end.get(i))){
+				sourceConnections.add(i);
+			}
+		}
 		int[] mainLineDistance = new int[start.size];
 		Arrays.fill(mainLineDistance, Integer.MAX_VALUE);
 		//mark source lines as distance 0
 		for (int i = 0; i < sourceConnections.size; i++) {
-			int endSegment = sourceConnections.get(i);
-			int currentIdx = endSegment;
+			int currentIdx = sourceConnections.get(i);
 			while (currentIdx != -1) {
 				mainLineDistance[currentIdx] = 0;
 				currentIdx = parent.get(currentIdx);
@@ -204,10 +202,8 @@ public class BrownianTreeGen extends ApplicationAdapter {
 		thickness.addAll(mainLineDistance);
 	}
 
-	public void finalizeTree(){
-		//TODO subdivide all lines at the point where the child line intersects with the parent.
 
-	}
+
 
 	public void createTree(boolean nearest, int targetLineCount, float angle, int childLimit, boolean randomStart, float lineLengthMin, float lineLengthMax) {
 		Gdx.app.log("main", "start" +nearest+targetLineCount + " " + angle);
@@ -284,22 +280,40 @@ public class BrownianTreeGen extends ApplicationAdapter {
 						hitSource = true;
 //						continue;
 					}
-					if (collIndex[0] == -1 || parent.get(collIndex[0]) == -1){
-						children.add(0);
-					} else {
-						int ch = children.get(parent.get(collIndex[0]))+1;
-						if (ch > childLimit) continue;
-						children.add(ch);
-//						Gdx.app.log("Main", "children " + ch);
-					}
 					start.add(new Vector2(a));
 					end.add(new Vector2(intersect));
-					Vector2 c = new Vector2(a);
-					c.lerp(intersect, 0.5f);
 					parent.add(collIndex[0]);
-					if (hitSource) sourceConnections.add(parent.size-1);
+					//subdivide parent
+
+					if (collIndex[0] != -1){
+						if (intersect.dst2(start.get(collIndex[0])) < 0.1f){//close to start
+							end.peek().set(start.get(collIndex[0]));
+							Gdx.app.log("tree", "merge parent");;
+						}else if (intersect.dst2(end.get(collIndex[0])) < 0.1f){//close to end, connect with parent's parent
+							if (parent.get(collIndex[0]) != -1){
+								parent.pop();
+								parent.add(parent.get(collIndex[0]));
+								end.peek().set(start.get(parent.get(collIndex[0])));
+								Gdx.app.log("tree", "merge grandparent");;
+							}
+						}
+						else {//subdivide
+							Vector2 parentEnd = end.get(collIndex[0]);
+							Vector2 extraStart = new Vector2(intersect);
+							Vector2 extraEnd = new Vector2(parentEnd);
+							parentEnd.set(intersect);
+							int extraParent = parent.get(collIndex[0]);
+							start.add(extraStart);
+							end.add(extraEnd);
+							parent.add(extraParent);
+							parent.set(collIndex[0], parent.size-1);
+						}
+
+
+					}
+
+
 					createdLines++;
-//					end.add(new Vector2(b));
 //					Gdx.app.log("main", "collided "+a+collIndex[0]);
 				}
 				a.set(b);
@@ -338,7 +352,15 @@ public class BrownianTreeGen extends ApplicationAdapter {
 			}
 		}
 	}
-
+	private boolean collideSource(Vector2 a, Vector2 b){
+		v.set(a).sub(b).nor().scl(0.1f).add(b);
+		for (int i = 0; i < drawingScreen.adjustedSourceEnd.size; i++) {
+			Vector2 st = drawingScreen.adjustedSourceStart.get(i);
+			Vector2 en = drawingScreen.adjustedSourceEnd.get(i);
+			if (Intersector.intersectSegments(a, v, st, en, intersect)) return true;
+		}
+		return false;
+	}
 	private boolean collide(Vector2 a, Vector2 b, Vector2 coll, int[] index) {
 		float dist = 100000000;
 		boolean hasCollided = false;
@@ -425,8 +447,6 @@ public class BrownianTreeGen extends ApplicationAdapter {
 
 			if (dist == 0) {
 				shape.setColor(Color.WHITE);
-			} else if (children.get(i) == 0) {
-				shape.setColor(tipColor);
 			} else {
 				float lerpFactor = MathUtils.clamp(dist / maxDistance, 0, 1);
 				tempColor.r = MathUtils.lerp(mainColor.r, tipColor.r, lerpFactor);
@@ -507,9 +527,13 @@ public class BrownianTreeGen extends ApplicationAdapter {
 			batch.begin();
 			String progress = "" + (int)(((float)createdLines / targetLineCount) * 100);
 			font.draw(batch, "[FOREST]"+progress+"%", 10, 30);
+
 			batch.end();
 
 		}
+		batch.begin();
+		font.draw(batch, "lines: "+start.size+"", 10, 50);
+		batch.end();
 	}
 	
 	@Override
