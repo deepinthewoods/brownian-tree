@@ -618,8 +618,9 @@ export function parseSVG(svgText, maxSegLen = 10) {
  * SVG Import Panel UI - manages the import tab in the settings sidebar.
  */
 export class SVGImportPanel {
-    constructor(container, onUpdate) {
+    constructor(container, tree, onUpdate) {
         this.container = container;
+        this.tree = tree; // reference to BrownianTree for dimensions
         this.onUpdate = onUpdate; // callback when anything changes
 
         this.importData = null; // parsed SVG data
@@ -634,10 +635,20 @@ export class SVGImportPanel {
     buildUI() {
         this.container.innerHTML = `
             <div class="setting-group">
+                <label style="font-weight:600; margin-bottom:4px;">Canvas Size</label>
+                <div class="import-canvas-size">
+                    <label>W: <input type="number" class="import-canvas-w" value="${this.tree.width}" min="1"></label>
+                    <label>H: <input type="number" class="import-canvas-h" value="${this.tree.height}" min="1"></label>
+                </div>
+            </div>
+            <div class="setting-group">
                 <button class="btn btn-primary import-file-btn" style="width:100%">Open SVG File</button>
                 <input type="file" accept=".svg" class="import-file-input" style="display:none">
             </div>
             <div class="import-settings" style="display:none">
+                <div class="setting-group">
+                    <button class="btn import-fit-btn" style="width:100%">Fit Canvas to SVG</button>
+                </div>
                 <div class="setting-group">
                     <div class="slider-container">
                         <div class="slider-label">
@@ -675,6 +686,20 @@ export class SVGImportPanel {
         this.settingsDiv = this.container.querySelector('.import-settings');
         this.layersList = this.container.querySelector('.import-layers-list');
 
+        // Canvas size inputs
+        this.canvasW = this.container.querySelector('.import-canvas-w');
+        this.canvasH = this.container.querySelector('.import-canvas-h');
+        this.canvasW.addEventListener('change', () => {
+            const w = parseInt(this.canvasW.value) || this.tree.width;
+            this.tree.setSize(w, this.tree.height);
+            this.onUpdate('resize');
+        });
+        this.canvasH.addEventListener('change', () => {
+            const h = parseInt(this.canvasH.value) || this.tree.height;
+            this.tree.setSize(this.tree.width, h);
+            this.onUpdate('resize');
+        });
+
         this.fileBtn.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.handleFile(e));
 
@@ -694,6 +719,11 @@ export class SVGImportPanel {
             this.maxSegmentLength = parseInt(this.segSlider.value);
             this.segValue.textContent = this.maxSegmentLength;
             this.reparse();
+        });
+
+        // Fit to SVG button
+        this.container.querySelector('.import-fit-btn').addEventListener('click', () => {
+            this.fitCanvasToSVG();
         });
 
         // Apply button
@@ -749,10 +779,24 @@ export class SVGImportPanel {
 
     centerImport() {
         if (!this.importData) return;
-        // Center the SVG in the 900x900 tree space
         const vb = this.importData.viewBox;
-        this.offsetX = (900 - vb.width * this.scale) / 2 - vb.x * this.scale;
-        this.offsetY = (900 - vb.height * this.scale) / 2 - vb.y * this.scale;
+        this.offsetX = (this.tree.width - vb.width * this.scale) / 2 - vb.x * this.scale;
+        this.offsetY = (this.tree.height - vb.height * this.scale) / 2 - vb.y * this.scale;
+    }
+
+    fitCanvasToSVG() {
+        if (!this.importData) return;
+        const vb = this.importData.viewBox;
+        // Set canvas to SVG dimensions, scale 1:1, offset to cancel viewBox origin
+        this.tree.setSize(Math.round(vb.width), Math.round(vb.height));
+        this.scale = 1.0;
+        this.scaleSlider.value = 100;
+        this.scaleValue.textContent = '1.00';
+        this.offsetX = -vb.x;
+        this.offsetY = -vb.y;
+        this.canvasW.value = Math.round(vb.width);
+        this.canvasH.value = Math.round(vb.height);
+        this.onUpdate('resize');
     }
 
     buildLayersList() {

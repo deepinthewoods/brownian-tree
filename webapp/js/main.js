@@ -35,7 +35,8 @@ class App {
         // Initialize components
         this.drawingScreen = new DrawingScreen(
             document.getElementById('drawingCanvas'),
-            () => this.showMainScreen()
+            () => this.showMainScreen(),
+            this.tree
         );
 
         this.exportScreen = new ExportScreen(
@@ -69,7 +70,7 @@ class App {
         // SVG Import panel
         this.activeTab = 'generation';
         const importContainer = document.getElementById('importPanel');
-        this.svgImportPanel = new SVGImportPanel(importContainer, (action) => {
+        this.svgImportPanel = new SVGImportPanel(importContainer, this.tree, (action) => {
             if (action === 'apply') {
                 this.applyImport();
             }
@@ -305,8 +306,8 @@ class App {
 
     initializeDefaultTree() {
         // Create default seed lines (center cross)
-        const centerX = 450;
-        const centerY = 450;
+        const centerX = this.tree.width / 2;
+        const centerY = this.tree.height / 2;
         const size = 20;
 
         const sourceStart = [
