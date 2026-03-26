@@ -471,6 +471,44 @@ input[type="range"]::-moz-range-thumb {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
+/* SVG Import */
+.import-layer-item {
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 6px;
+}
+
+.import-layer-name {
+    display: block;
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.import-layer-btns {
+    display: flex;
+    gap: 4px;
+}
+
+.import-role-btn {
+    flex: 1;
+    padding: 4px 6px !important;
+    font-size: 11px !important;
+    min-height: auto !important;
+    text-align: center;
+}
+
+.import-role-btn.active {
+    background: #333;
+    border-color: #888;
+    font-weight: 600;
+}
+
 /* Seed input */
 .seed-input {
     display: flex;
