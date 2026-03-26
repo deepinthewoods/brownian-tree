@@ -61,6 +61,11 @@ export class BrownianTree {
         this.postCalculations();
     }
 
+    setSize(width, height) {
+        this.width = width;
+        this.height = height;
+    }
+
     setSeedLines(seedLines) {
         this.adjustedSourceStart = seedLines.start.map(v => v.copy());
         this.adjustedSourceEnd = seedLines.end.map(v => v.copy());

@@ -1,14 +1,15 @@
 import { Vector2, intersectSegments } from './utils.js';
 
 export class DrawingScreen {
-    constructor(canvas, onBack) {
+    constructor(canvas, onBack, tree) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.onBack = onBack;
+        this.tree = tree; // reference to BrownianTree for dynamic dimensions
 
-        // Tree coordinate space (must match BrownianTree dimensions)
-        this.treeWidth = 900;
-        this.treeHeight = 900;
+        // Tree coordinate space (read from BrownianTree)
+        this.treeWidth = tree ? tree.width : 900;
+        this.treeHeight = tree ? tree.height : 900;
 
         // Different line types
         this.sourceStart = [];
@@ -76,6 +77,11 @@ export class DrawingScreen {
 
     // Calculate the transform from screen to tree coordinates (matching main canvas)
     getTransform() {
+        // Read current dimensions from tree
+        if (this.tree) {
+            this.treeWidth = this.tree.width;
+            this.treeHeight = this.tree.height;
+        }
         const width = document.documentElement.clientWidth || window.innerWidth;
         const height = document.documentElement.clientHeight || window.innerHeight;
         const scale = Math.min(width / this.treeWidth, height / this.treeHeight) * 0.8;

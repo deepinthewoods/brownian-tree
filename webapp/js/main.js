@@ -3,6 +3,7 @@ import { DrawingScreen } from './drawing.js';
 import { SettingsPanel, SeedPanel } from './settings.js';
 import { ExportScreen } from './export.js';
 import { PostProcessor, PostProcessingPanel } from './postprocessing.js';
+import { SVGImportPanel } from './svgImport.js';
 import { Vector2 } from './utils.js';
 
 class App {
@@ -34,7 +35,8 @@ class App {
         // Initialize components
         this.drawingScreen = new DrawingScreen(
             document.getElementById('drawingCanvas'),
-            () => this.showMainScreen()
+            () => this.showMainScreen(),
+            this.tree
         );
 
         this.exportScreen = new ExportScreen(
@@ -64,6 +66,24 @@ class App {
         this.postProcessingPanel = new PostProcessingPanel(ppContainer, this.postProcessor, () => {
             this.applyPostProcessing();
         });
+
+        // SVG Import panel
+        this.activeTab = 'generation';
+        const importContainer = document.getElementById('importPanel');
+        this.svgImportPanel = new SVGImportPanel(importContainer, this.tree, (action) => {
+            if (action === 'apply') {
+                this.applyImport();
+            }
+            // Update canvas interactivity for drag
+            const canDrag = this.activeTab === 'import' && this.svgImportPanel.hasImport();
+            this.mainCanvas.style.pointerEvents = canDrag ? 'auto' : 'none';
+            this.mainCanvas.style.cursor = canDrag ? 'grab' : 'default';
+            this.render();
+        });
+
+        // Import drag state
+        this.importDragging = false;
+        this.importDragStart = null;
 
         // Setup canvas
         this.setupMainCanvas();
@@ -204,10 +224,65 @@ class App {
                 document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 const tabName = tab.dataset.tab;
+                this.activeTab = tabName;
                 document.getElementById('generationTab').style.display = tabName === 'generation' ? '' : 'none';
                 document.getElementById('postprocessTab').style.display = tabName === 'postprocess' ? '' : 'none';
+                document.getElementById('importTab').style.display = tabName === 'import' ? '' : 'none';
+                // Enable/disable canvas pointer events for import dragging
+                this.mainCanvas.style.pointerEvents = (tabName === 'import' && this.svgImportPanel.hasImport()) ? 'auto' : 'none';
+                this.mainCanvas.style.cursor = (tabName === 'import' && this.svgImportPanel.hasImport()) ? 'grab' : 'default';
+                this.render();
             });
         });
+
+        // Import drag handling on main canvas
+        this.setupImportDrag();
+    }
+
+    setupImportDrag() {
+        const getPos = (e) => {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX, y: clientY };
+        };
+
+        const onDown = (e) => {
+            if (this.activeTab !== 'import' || !this.svgImportPanel.hasImport()) return;
+            e.preventDefault();
+            this.importDragging = true;
+            this.importDragStart = getPos(e);
+            this.mainCanvas.style.cursor = 'grabbing';
+        };
+
+        const onMove = (e) => {
+            if (!this.importDragging || !this.importDragStart) return;
+            e.preventDefault();
+            const pos = getPos(e);
+            const dx = pos.x - this.importDragStart.x;
+            const dy = pos.y - this.importDragStart.y;
+            this.importDragStart = pos;
+
+            // Convert screen delta to tree-coordinate delta
+            const width = document.documentElement.clientWidth || window.innerWidth;
+            const height = document.documentElement.clientHeight || window.innerHeight;
+            const scale = Math.min(width / this.tree.width, height / this.tree.height) * 0.8;
+            this.svgImportPanel.applyDrag(dx / scale, dy / scale);
+        };
+
+        const onUp = () => {
+            if (this.importDragging) {
+                this.importDragging = false;
+                this.importDragStart = null;
+                this.mainCanvas.style.cursor = 'grab';
+            }
+        };
+
+        this.mainCanvas.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        this.mainCanvas.addEventListener('touchstart', onDown, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onUp);
     }
 
     addSettingsPanel() {
@@ -231,8 +306,8 @@ class App {
 
     initializeDefaultTree() {
         // Create default seed lines (center cross)
-        const centerX = 450;
-        const centerY = 450;
+        const centerX = this.tree.width / 2;
+        const centerY = this.tree.height / 2;
         const size = 20;
 
         const sourceStart = [
@@ -300,6 +375,35 @@ class App {
         this.render();
     }
 
+    applyImport() {
+        if (!this.svgImportPanel.hasImport()) return;
+
+        // Get segments for each role
+        const source = this.svgImportPanel.getSegmentsForRole('source');
+        const dest = this.svgImportPanel.getSegmentsForRole('destination');
+        const exclude = this.svgImportPanel.getSegmentsForRole('exclude');
+
+        // Merge into drawing screen's lines
+        this.drawingScreen.sourceStart.push(...source.starts);
+        this.drawingScreen.sourceEnd.push(...source.ends);
+        this.drawingScreen.destStart.push(...dest.starts);
+        this.drawingScreen.destEnd.push(...dest.ends);
+        this.drawingScreen.excludeStart.push(...exclude.starts);
+        this.drawingScreen.excludeEnd.push(...exclude.ends);
+
+        // Update adjusted source lines and push to tree
+        this.drawingScreen.makeAdjustedSourceLines();
+        const seedLines = this.drawingScreen.getSeedLines();
+        this.tree.setSeedLines(seedLines);
+
+        this.render();
+        console.log('SVG import applied:', {
+            source: source.starts.length,
+            dest: dest.starts.length,
+            exclude: exclude.starts.length
+        });
+    }
+
     updateProgressBar(current, total) {
         const percent = Math.floor((current / total) * 100);
         this.progressBar.style.width = `${percent}%`;
@@ -344,6 +448,11 @@ class App {
             this.tree.render(this.mainCtx, 0, 0);
         }
 
+        // Render import preview overlay
+        if (this.svgImportPanel && this.svgImportPanel.hasImport()) {
+            this.renderImportPreview(this.mainCtx);
+        }
+
         // Restore context
         this.mainCtx.restore();
 
@@ -351,6 +460,31 @@ class App {
         this.mainCtx.fillStyle = '#FFFFFF';
         this.mainCtx.font = '16px sans-serif';
         this.mainCtx.fillText(`lines: ${this.tree.start.length} | src: ${this.tree.adjustedSourceStart.length} | dst: ${this.tree.destStart.length}`, 10, 50);
+    }
+
+    renderImportPreview(ctx) {
+        const segments = this.svgImportPanel.getAllSegments();
+        const roleColors = {
+            source: '#00FFFF',
+            destination: '#00FF00',
+            exclude: '#FF0000',
+            none: '#888888'
+        };
+        const alpha = this.activeTab === 'import' ? 0.8 : 0.3;
+
+        ctx.lineWidth = 1;
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = alpha;
+
+        for (const seg of segments) {
+            ctx.strokeStyle = roleColors[seg.role] || '#888888';
+            ctx.beginPath();
+            ctx.moveTo(seg.start.x, seg.start.y);
+            ctx.lineTo(seg.end.x, seg.end.y);
+            ctx.stroke();
+        }
+
+        ctx.globalAlpha = 1.0;
     }
 
     animate() {
