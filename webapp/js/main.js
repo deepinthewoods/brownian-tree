@@ -2,6 +2,7 @@ import { BrownianTree } from './brownianTree.js';
 import { DrawingScreen } from './drawing.js';
 import { SettingsPanel, SeedPanel } from './settings.js';
 import { ExportScreen } from './export.js';
+import { PostProcessor, PostProcessingPanel } from './postprocessing.js';
 import { Vector2 } from './utils.js';
 
 class App {
@@ -41,6 +42,10 @@ class App {
             this.tree
         );
 
+        // Initialize post-processor
+        this.postProcessor = new PostProcessor();
+        this.processedSegments = null;
+
         // Initialize settings panels
         this.settingsPanels = [];
         this.panelIdCounter = 2; // Start from 2 since we have settings1 and settings2
@@ -53,6 +58,12 @@ class App {
         const settings2Container = document.getElementById('settings2');
         const panel = new SettingsPanel(settings2Container, this.tree, (...args) => this.generate(...args));
         this.settingsPanels.push(panel);
+
+        // Post-processing panel
+        const ppContainer = document.getElementById('postprocessPanel');
+        this.postProcessingPanel = new PostProcessingPanel(ppContainer, this.postProcessor, () => {
+            this.applyPostProcessing();
+        });
 
         // Setup canvas
         this.setupMainCanvas();
@@ -116,6 +127,7 @@ class App {
         // Top controls
         document.getElementById('resetBtn').addEventListener('click', () => {
             this.tree.reset();
+            this.processedSegments = null;
             this.render();
         });
 
@@ -185,6 +197,17 @@ class App {
         document.getElementById('addPanelBtn').addEventListener('click', () => {
             this.addSettingsPanel();
         });
+
+        // Tab switching
+        document.querySelectorAll('.settings-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const tabName = tab.dataset.tab;
+                document.getElementById('generationTab').style.display = tabName === 'generation' ? '' : 'none';
+                document.getElementById('postprocessTab').style.display = tabName === 'postprocess' ? '' : 'none';
+            });
+        });
     }
 
     addSettingsPanel() {
@@ -196,8 +219,8 @@ class App {
         newPanel.className = 'settings-panel';
         newPanel.id = newId;
 
-        // Insert before the add button
-        const container = document.getElementById('settingsContainer');
+        // Insert before the add button within the generation tab
+        const container = document.getElementById('generationTab');
         const addBtn = document.getElementById('addPanelBtn');
         container.insertBefore(newPanel, addBtn);
 
@@ -264,6 +287,16 @@ class App {
         // Hide progress bar
         this.progressContainer.style.display = 'none';
 
+        // Re-apply post-processing with new tree data
+        this.applyPostProcessing();
+    }
+
+    applyPostProcessing() {
+        if (this.postProcessor.isEnabled()) {
+            this.processedSegments = this.postProcessor.process(this.tree);
+        } else {
+            this.processedSegments = null;
+        }
         this.render();
     }
 
@@ -304,8 +337,12 @@ class App {
         this.mainCtx.translate(offsetX, offsetY);
         this.mainCtx.scale(scale, scale);
 
-        // Render tree
-        this.tree.render(this.mainCtx, 0, 0);
+        // Render tree (with post-processing if enabled)
+        if (this.processedSegments) {
+            this.tree.renderProcessed(this.mainCtx, this.processedSegments, 0, 0);
+        } else {
+            this.tree.render(this.mainCtx, 0, 0);
+        }
 
         // Restore context
         this.mainCtx.restore();
@@ -344,6 +381,7 @@ class App {
         this.mainScreen.classList.remove('active');
         this.drawingScreenElement.classList.remove('active');
         this.exportScreenElement.classList.add('active');
+        this.exportScreen.setProcessedSegments(this.processedSegments);
         this.updateExportSettings();
     }
 
@@ -353,6 +391,7 @@ class App {
         const dpi = parseInt(document.getElementById('exportDpi').value) || 300;
 
         this.exportScreen.setExportSettings(width, height, dpi);
+        this.exportScreen.setProcessedSegments(this.processedSegments);
         this.exportScreen.updatePreview();
     }
 
@@ -360,6 +399,7 @@ class App {
         const config = {
             tree: this.tree.getState(),
             settings: this.settingsPanels.map(p => p.getSettings()),
+            postProcessing: this.postProcessingPanel.getSettings(),
             exportSettings: this.exportScreen.getExportSettings(),
             timestamp: Date.now()
         };
@@ -400,6 +440,11 @@ class App {
                                 this.settingsPanels[index].setSettings(settings);
                             }
                         });
+                    }
+
+                    // Restore post-processing settings
+                    if (config.postProcessing) {
+                        this.postProcessingPanel.setSettings(config.postProcessing);
                     }
 
                     // Restore export settings
