@@ -9,6 +9,12 @@ export class ExportScreen {
             heightMM: 297,
             dpi: 300
         };
+
+        this.processedSegments = null;
+    }
+
+    setProcessedSegments(segments) {
+        this.processedSegments = segments;
     }
 
     mmToPixels(mm, dpi) {
@@ -41,8 +47,12 @@ export class ExportScreen {
         this.ctx.translate(offsetX, offsetY);
         this.ctx.scale(scale, scale);
 
-        // Render tree
-        this.tree.render(this.ctx, 0, 0);
+        // Render tree (with post-processing if available)
+        if (this.processedSegments) {
+            this.tree.renderProcessed(this.ctx, this.processedSegments, 0, 0);
+        } else {
+            this.tree.render(this.ctx, 0, 0);
+        }
 
         this.ctx.restore();
     }
@@ -51,7 +61,9 @@ export class ExportScreen {
         const widthPx = this.mmToPixels(this.exportSettings.widthMM, this.exportSettings.dpi);
         const heightPx = this.mmToPixels(this.exportSettings.heightMM, this.exportSettings.dpi);
 
-        const svg = this.tree.toSVG(widthPx, heightPx);
+        const svg = this.processedSegments
+            ? this.tree.toSVGProcessed(widthPx, heightPx, this.processedSegments)
+            : this.tree.toSVG(widthPx, heightPx);
 
         // Create download link
         const blob = new Blob([svg], { type: 'image/svg+xml' });

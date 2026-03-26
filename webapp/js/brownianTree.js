@@ -468,6 +468,115 @@ export class BrownianTree {
         }
     }
 
+    /**
+     * Render post-processed segments (polylines instead of straight lines)
+     */
+    renderProcessed(ctx, processedSegments, offsetX = 0, offsetY = 0) {
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 1;
+
+        const mainColor = { r: 255, g: 0, b: 0 };
+        const tipColor = { r: 0, g: 255, b: 0 };
+
+        for (const seg of processedSegments) {
+            const dist = seg.thickness;
+            const pts = seg.points;
+            if (pts.length < 2) continue;
+
+            if (dist === 0) {
+                ctx.strokeStyle = 'white';
+            } else {
+                const lerpFactor = Math.min(dist / this.maxDistance, 1);
+                const r = Math.floor(mainColor.r + (tipColor.r - mainColor.r) * lerpFactor);
+                const g = Math.floor(mainColor.g + (tipColor.g - mainColor.g) * lerpFactor);
+                const b = Math.floor(mainColor.b + (tipColor.b - mainColor.b) * lerpFactor);
+                ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x + offsetX, pts[0].y + offsetY);
+            for (let j = 1; j < pts.length; j++) {
+                ctx.lineTo(pts[j].x + offsetX, pts[j].y + offsetY);
+            }
+            ctx.stroke();
+        }
+
+        // Draw destination, exclude, and source lines as before
+        ctx.strokeStyle = '#00FF00';
+        for (let i = 0; i < this.destStart.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.destStart[i].x + offsetX, this.destStart[i].y + offsetY);
+            ctx.lineTo(this.destEnd[i].x + offsetX, this.destEnd[i].y + offsetY);
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = '#FF0000';
+        for (let i = 0; i < this.excludeStart.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.excludeStart[i].x + offsetX, this.excludeStart[i].y + offsetY);
+            ctx.lineTo(this.excludeEnd[i].x + offsetX, this.excludeEnd[i].y + offsetY);
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = '#00FFFF';
+        for (let i = 0; i < this.adjustedSourceStart.length; i++) {
+            if (!this.shouldStopGenerating[i]) {
+                ctx.beginPath();
+                ctx.moveTo(this.adjustedSourceStart[i].x + offsetX, this.adjustedSourceStart[i].y + offsetY);
+                ctx.lineTo(this.adjustedSourceEnd[i].x + offsetX, this.adjustedSourceEnd[i].y + offsetY);
+                ctx.stroke();
+            }
+        }
+
+        ctx.strokeStyle = '#0000FF';
+        for (let i = 0; i < this.adjustedSourceStart.length; i++) {
+            if (this.shouldStopGenerating[i]) {
+                ctx.beginPath();
+                ctx.moveTo(this.adjustedSourceStart[i].x + offsetX, this.adjustedSourceStart[i].y + offsetY);
+                ctx.lineTo(this.adjustedSourceEnd[i].x + offsetX, this.adjustedSourceEnd[i].y + offsetY);
+                ctx.stroke();
+            }
+        }
+    }
+
+    toSVGProcessed(width, height, processedSegments) {
+        const scaleX = width / this.width;
+        const scaleY = height / this.height;
+
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n`;
+        svg += `  <rect width="${width}" height="${height}" fill="black"/>\n`;
+        svg += `  <g stroke="white" stroke-linecap="round" stroke-linejoin="round">\n`;
+
+        for (let t = 0; t <= this.MAX_THICKNESS; t++) {
+            const strokeWidth = (t + 2.0) * Math.min(scaleX, scaleY);
+
+            for (const seg of processedSegments) {
+                if (seg.thickness !== t) continue;
+                const pts = seg.points;
+                if (pts.length < 2) continue;
+
+                // Use SVG path with cubic Bezier if available, otherwise polyline
+                if (seg.bezier) {
+                    const b = seg.bezier;
+                    svg += `    <path d="M${b.p0.x * scaleX},${b.p0.y * scaleY} C${b.p1.x * scaleX},${b.p1.y * scaleY} ${b.p2.x * scaleX},${b.p2.y * scaleY} ${b.p3.x * scaleX},${b.p3.y * scaleY}" fill="none" stroke-width="${strokeWidth}"/>\n`;
+                } else {
+                    let d = `M${pts[0].x * scaleX},${pts[0].y * scaleY}`;
+                    for (let j = 1; j < pts.length; j++) {
+                        d += ` L${pts[j].x * scaleX},${pts[j].y * scaleY}`;
+                    }
+                    svg += `    <path d="${d}" fill="none" stroke-width="${strokeWidth}"/>\n`;
+                }
+            }
+        }
+
+        svg += `  </g>\n`;
+        svg += `</svg>`;
+
+        return svg;
+    }
+
     toSVG(width, height) {
         const scaleX = width / this.width;
         const scaleY = height / this.height;
